@@ -68,7 +68,7 @@ export interface PageData {
     preservedState?: any;
     props?: any;
 }
-;
+
 export interface PanelPosition {
     panelID: PanelID;
     x: number;

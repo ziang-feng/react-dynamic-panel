@@ -57,7 +57,7 @@ export default function WorkspaceContainer({ initialWorkspaceProps, workspaceID,
         manualResizeFlagRef,
     };
 
-    const workspaceFunction: WorkspaceFunction = {
+    const workspaceHandler: WorkspaceHandler = {
         createNewTabInPanel,
         createNewSplit,
         closeTabInPanel,
@@ -109,9 +109,9 @@ export default function WorkspaceContainer({ initialWorkspaceProps, workspaceID,
 
     return (
         <WorkspaceConfigContext.Provider value={config}>
-            <WorkspaceFunctionContext.Provider value={workspaceFunction}>
-                <PanelGlobalPropsContext.Provider value={panelGlobalProps}>
-                    <PanelUtilityContext.Provider value={panelUtility}>
+            <WorkspaceHandlerContext.Provider value={workspaceHandler}>
+                <WorkspacePropsContext.Provider value={workspaceProps}>
+                    <WorkspaceUtilityContext.Provider value={workspaceUtility}>
                         <div className="flex h-full w-full bg-white relative overflow-auto" ref={selfRef}>
                             <div className="overflow-visible absolute h-full w-full">
                                 {contentRenderList}
@@ -121,9 +121,9 @@ export default function WorkspaceContainer({ initialWorkspaceProps, workspaceID,
                             </div>
                             <Modal ref={modalInterfaceRef} />
                         </div>
-                    </PanelUtilityContext.Provider>
-                </PanelGlobalPropsContext.Provider>
-            </WorkspaceFunctionContext.Provider>
+                    </WorkspaceUtilityContext.Provider>
+                </WorkspacePropsContext.Provider>
+            </WorkspaceHandlerContext.Provider>
         </WorkspaceConfigContext.Provider>
     );
 }

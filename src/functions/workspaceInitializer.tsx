@@ -1,58 +1,58 @@
 import { MutableRefObject, RefObject } from "react";
 import DefaultPage from "../components/defaultPage";
-import { PageDataReference, PanelDivisionReference } from "../types/workspaceTypes";
+import { PageDataReference, PanelDivisionReference, PanelFocusReference, PanelPageListReference, PanelPositionReference, WorkspaceConfig, WorkspaceProps, WorkspaceUtility } from "../types/workspaceTypes";
 
 // const topPanelID = getRandomID();
 // const newContentID = getRandomID();
 const topPanelID = "TOP";
-const newContentID = "Content";
+const newPageID = "Page";
 
-export function initiateWorkspace() {
-    const newContentMeta = {
-        contentID: newContentID,
+export function getEmptyWorkspaceProps() {
+    const newPageData = {
+        pageID: newPageID,
         name: "New Tab",
         component: DefaultPage,
         parentPanelID: topPanelID,
         persist: false,
     };
-    // set content ref
+    // set pageData ref
     const pageDataReference: PageDataReference = {
-        [newContentID]: newContentMeta
+        [newPageID]: newPageData
     }
 
-    // split state
-    const panelSplitReference: PanelDivisionReference = {
+    // set panelDivision ref
+    const panelDivisionReference: PanelDivisionReference = {
         [topPanelID]: {
             panelID: topPanelID,
             subPanelIDList: [],
-            splitDirection: null,
-            splitProportionList: [],
+            divisionDirection: null,
+            divisionProportionList: [],
         }
     }
 
     // panel content order
-    const panelContentIDOrderList: PanelContentIDOrderList = {
-        [topPanelID]: [newContentID]
+    const panelPageListReference: PanelPageListReference = {
+        [topPanelID]: [newPageID]
     }
 
     // focus
     const panelFocusReference: PanelFocusReference = {
-        [topPanelID]: newContentID
+        [topPanelID]: newPageID
     }
 
     // inital prop
-    const initialProps: PanelGlobalProps = {
+    const initialProps: WorkspaceProps = {
         activePanelID: topPanelID,
-        contentReference: pageDataReference,
+        pageDataReference,
         panelPositionReference: {},
         panelFocusReference,
-        panelSplitReference,
-        panelContentIDOrderList,
+        panelDivisionReference,
+        panelPageListReference,
         draggedData: null,
         topPanelID,
     }
 
-    return { initialProps, topPanelID };
+    return initialProps;
 }
 
 export function getDefaultConfig() {
@@ -72,13 +72,13 @@ export function getDefaultConfig() {
     } as WorkspaceConfig;
 }
 
-export function initiateResizeObserver(panelUtility: PanelUtility, positionRef: MutableRefObject<PanelPositionReference>, manualResizeFlagRef: MutableRefObject<boolean>, containerRef: RefObject<HTMLDivElement>) {
+export function initializeResizeObserver(workspaceUtility: WorkspaceUtility, panelPositionReferenceAccesser: MutableRefObject<PanelPositionReference>, manualResizeFlagRef: MutableRefObject<boolean>, containerRef: RefObject<HTMLDivElement>) {
     const resizeObserver = new ResizeObserver((entries) => {
         const containerRect = containerRef.current!.getBoundingClientRect()
         const newPositionRef: PanelPositionReference = {};
         const alreadyResizedPanelID = [];
         let shouldManualResize = false;
-        for (let entry of entries) {
+        for (const entry of entries) {
             if (entry.target == containerRef.current!) {
                 shouldManualResize = true;
                 continue;
@@ -100,8 +100,8 @@ export function initiateResizeObserver(panelUtility: PanelUtility, positionRef: 
             // if the workspace container is resized, or received signal to manual resize, then we need to manually resize all panels not in entries
             // if signal received, clear signal
             if (manualResizeFlagRef.current!) manualResizeFlagRef.current = false;
-            const panelPositionReference = positionRef.current!;
-            for (let panelID in panelPositionReference) {
+            const panelPositionReference = panelPositionReferenceAccesser.current!;
+            for (const panelID in panelPositionReference) {
                 // skip panels that have already been resized
                 if (alreadyResizedPanelID.includes(panelID)) continue;
                 const newRect = document.getElementById(panelID)!.getBoundingClientRect();
