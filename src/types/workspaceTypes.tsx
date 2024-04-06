@@ -1,4 +1,4 @@
-import { Dispatch, FC } from "react";
+import { Dispatch, FC, Ref, RefObject } from "react";
 import { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 import { ModalData } from "./modalTypes";
 
@@ -15,6 +15,7 @@ export interface WorkspaceUtility {
 }
 
 export interface WorkspaceProps {
+    workspaceID: WorkspaceID;
     activePanelID: PanelID;
     pageDataReference: PageDataReference;
     panelPositionReference: PanelPositionReference;
@@ -22,28 +23,27 @@ export interface WorkspaceProps {
     panelDivisionReference: PanelDivisionReference;
     panelPageListReference: PanelPageListReference;
     topPanelID: PanelID;
-    draggedData: DraggedData|null;
-    dragPositionRef?: React.MutableRefObject<{ x: number; y: number; }>;
+    workspaceContainerRef?: RefObject<HTMLDivElement>;
     resizeObserver?: ResizeObserver;
-    manualResizeFlagRef?: React.MutableRefObject<boolean>;
 }
 
-export interface WorkspaceHandler {
-    createNewPageInPanel: (panelID: PanelID, newPageData?: PageData, afterPageID?: PageID) => void;
-    createNewSplit: (initiatePanelID: PanelID, divisionDirection: DivisionDirection, newPanelPosition: "after" | "before", movedPageID?: PageID) => void;
-    closePageInPanel: (panelID: PanelID, pageID: PageID) => void;
-    focusPageInPanel: (panelID: PanelID, pageID: PageID) => void;
-    movePageToPanel: (orgPanelID: PanelID, targetPanelID: PanelID, pageID: PageID, targetPositionPageID: PageID | null, relativePosition:"before"|"after") => void;
-    movePageInPanel: (panelID: PanelID, pageID: PageID, targetPositionPageID: PageID | null, relativePosition:"before"|"after") => void;
+export interface WorkspaceAction {
+    createNewPageInPanel: (panelID: PanelID, newPageData?: PageData, afterPageID?: PageID) => WorkspaceProps;
+    createNewDivision: (initiatePanelID: string, divisionDirection: DivisionDirection, newPanelPosition: "after" | "before", movedPageID?: string | undefined) => WorkspaceProps;
+    closePageInPanel: (panelID: PanelID, pageID: PageID) => WorkspaceProps;
+    focusPageInPanel: (panelID: PanelID, pageID: PageID) => WorkspaceProps;
+    movePage: (orgPanelID: PanelID, targetPanelID: PanelID, pageID: PageID, targetPositionPageID?: PageID) => WorkspaceProps;
+    destroySubPanel: (parentPanelID: PanelID, subpanelID: PanelID, panelPageAction: "delete" | "move" | "ignore", pageMoveTargetPanelID?: PanelID) => WorkspaceProps;
+    resizePanelDivision :(panelID: PanelID, handleIndex: number, resizeStartProportionList: number[], percentageDelta: number, deltaRange: number[])=> WorkspaceProps;
 }
 
 export interface WorkspaceConfig {
     panelMinimumDimensionRem: { height: number, width: number },
     panelResizeHandleSizeRem: number,
-    dragOption: DragOption
+    dragConfig: DragConfig
 }
 
-export interface DragOption {
+export interface DragConfig {
     edgeScrollActiveWidthRem: number,
     edgeScrollMinSpeed: number,
     edgeScrollMaxSpeed: number,
@@ -51,7 +51,8 @@ export interface DragOption {
     dropSplitActivationPercentage:{
         x:number,
         y:number,
-    }
+    },
+    dragActivationThresholdRem: number
 }
 
 export type WorkspaceID = string;
@@ -93,5 +94,27 @@ export type DivisionDirection = "horizontal" | "vertical" | null;
 export type DraggedData = {
     type: "tab",
     panelID: PanelID,
-    pageID: PageID
+    pageID: PageID,
+    startPosition: { x: number, y: number },
+} | {
+    type: "pageListItem",
+    panelID: PanelID,
+    pageID: PageID,
+    startPosition: { x: number, y: number },
+    startPositionRelative: { leftProportion: number, topProportion: number },
+}
+
+export interface WorkspaceDragProps {
+    workspaceMask: "workspace" | "pageContainer" | null;
+    setWorkspaceMask: Dispatch<"workspace" | "pageContainer" | null>;
+    draggedData: DraggedData | null;
+    setDraggedData: Dispatch<DraggedData | null>;
+    dragCursorStyle: string;
+    setDragCursorStyle: Dispatch<string>;
+}
+export interface ElementRect {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
 }

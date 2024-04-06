@@ -1,11 +1,19 @@
-import { useEffect, useReducer, useRef, useState } from "react";
-import { WorkspaceUtilityContext, WorkspacePropsContext, WorkspaceHandlerContext, WorkspaceConfigContext } from "./contexts/workspaceContext";
-
-import { PanelID, WorkspaceProps, WorkspaceUtility, WorkspaceConfig, PageDataReference, PanelPositionReference, PanelDivisionReference, DraggedData, WorkspaceID } from "./types/workspaceTypes";
-import { useDragMoveRef } from "./hooks/useDragMoveRef";
+import { createContext, useEffect, useMemo, useRef, useState } from "react";
+import { WorkspaceProps, WorkspaceUtility, WorkspaceConfig, PageDataReference, PanelPositionReference, PanelDivisionReference, DraggedData, WorkspaceAction, WorkspaceDragProps } from "./types/workspaceTypes";
 import { ModalInterface } from "./types/modalTypes";
+import { initializeResizeObserver } from "./functions/workspaceInitializer";
+import { Panel } from "./components/panel";
+import DragIcon from "./components/dragIcon";
+import { getWorkspaceActionFromHandler } from "./functions/utility";
+import { Modal } from "./components/modal";
 
-export default function WorkspaceContainer({ initialWorkspaceProps, workspaceID, topPanelID, config }: { initialWorkspaceProps: WorkspaceProps, workspaceID: WorkspaceID, topPanelID: PanelID, config: WorkspaceConfig }) {
+export const WorkspaceUtilityContext = createContext<WorkspaceUtility | null>(null);
+export const WorkspacePropsContext = createContext<WorkspaceProps | null>(null);
+export const WorkspaceActionContext = createContext<WorkspaceAction | null>(null);
+export const WorkspaceConfigContext = createContext<WorkspaceConfig | null>(null);
+export const WorkspaceDragPropsContext = createContext<WorkspaceDragProps | null>(null);
+
+export default function WorkspaceContainer({ initialWorkspaceProps, config }: { initialWorkspaceProps: WorkspaceProps, config: WorkspaceConfig }) {
     const [activePanelID, setActivePanelID] = useState<string>(initialWorkspaceProps.activePanelID);
     const [pageDataReference, setPageDataReference] = useState<PageDataReference>(initialWorkspaceProps.pageDataReference);
     const [panelPositionReference, setPanelPositionReference] = useState<PanelPositionReference>(initialWorkspaceProps.panelPositionReference);
@@ -15,10 +23,9 @@ export default function WorkspaceContainer({ initialWorkspaceProps, workspaceID,
 
     // used for tab dragging, drag scrolling
     const [draggedData, setDraggedData] = useState<DraggedData | null>(null);
-    const dragPositionRef = useDragMoveRef(draggedData);
 
     const modalInterfaceRef = useRef<ModalInterface>(null);
-    const selfRef = useRef<HTMLDivElement>(null);
+    const workspaceContainerRef = useRef<HTMLDivElement>(null);
 
     const workspaceUtility: WorkspaceUtility = {
         setActivePanelID,
@@ -34,64 +41,52 @@ export default function WorkspaceContainer({ initialWorkspaceProps, workspaceID,
     // for resizeobserver use only
     // we can only pass in values to the initializer, we pass in a ref object so the most up-to-date positionState can be accessed by .current
     const panelPositionReferenceAccesser = useRef<PanelPositionReference>(panelPositionReference);
-    // update value with every position ref change
-    useEffect(()=>{
-        panelPositionReferenceAccesser.current = panelPositionReference;
-    },[panelPositionReference]);
+    panelPositionReferenceAccesser.current = panelPositionReference;
+    const panelDivisionReferenceAccesser = useRef<PanelDivisionReference>(panelDivisionReference);
+    panelDivisionReferenceAccesser.current = panelDivisionReference;
 
-    // used to communicate with the resizeObserver to recalculate all panel positions when new panel is first created
-    const manualResizeFlagRef = useRef<boolean>(false);
-    const resizeObserverRef = useRef<ResizeObserver>(initiateResizeObserver(workspaceUtility, panelPositionReferenceAccesser, manualResizeFlagRef, selfRef));
+    const resizeObserverRef = useRef<ResizeObserver>(initializeResizeObserver(workspaceUtility, panelPositionReferenceAccesser, panelDivisionReferenceAccesser, workspaceContainerRef));
 
     const workspaceProps: WorkspaceProps = {
+        workspaceID: initialWorkspaceProps.workspaceID,
         activePanelID,
         pageDataReference,
         panelPositionReference,
         panelFocusReference,
         panelDivisionReference,
         panelPageListReference,
-        draggedData,
-        dragPositionRef,
-        topPanelID,
+        topPanelID: initialWorkspaceProps.topPanelID,
+        workspaceContainerRef,
         resizeObserver: resizeObserverRef.current,
-        manualResizeFlagRef,
     };
 
-    const workspaceHandler: WorkspaceHandler = {
-        createNewTabInPanel,
-        createNewSplit,
-        closeTabInPanel,
-        focusTabInPanel,
-        moveTabToPanel,
-        moveTabInPanel
+    const workspaceAction = useMemo(() => getWorkspaceActionFromHandler(workspaceProps, workspaceUtility, config, resizeObserverRef.current), [workspaceProps, workspaceUtility, config, resizeObserverRef.current]);
+
+    // for drag and drop, and resize handle
+    const [workspaceMask, setWorkspaceMask] = useState<"workspace" | "pageContainer" | null>(null);
+    const [dragCursorStyle, setDragCursorStyle] = useState("");
+    const workspaceDragProps: WorkspaceDragProps = {
+        workspaceMask,
+        setWorkspaceMask,
+        draggedData,
+        setDraggedData,
+        dragCursorStyle,
+        setDragCursorStyle
     }
 
-    function createNewTabInPanel(panelID: PanelID, newContentMeta?: PanelContentMetadata, afterContentID?: ContentID) { createNewTabInPanelReducer(panelID, panelUtility, panelGlobalProps, newContentMeta, afterContentID) };
-
-    function createNewSplit(initiatePanelID: PanelID, splitDirection: SplitDirection, newPanelPosition: "after" | "before", movedContentID?: ContentID) { createNewSplitReducer(initiatePanelID, splitDirection, newPanelPosition, panelUtility, panelGlobalProps, config, movedContentID) };
-
-    function closeTabInPanel(panelID: PanelID, tabContentID: ContentID) { closeTabInPanelReducer(panelID, tabContentID, panelUtility, panelGlobalProps) };
-
-    function focusTabInPanel(panelID: PanelID, tabContentID: ContentID) { focusTabInPanelReducer(panelID, tabContentID, panelUtility, panelGlobalProps) };
-
-    function moveTabToPanel(orgPanelID: PanelID, targetPanelID: PanelID, tabContentID: ContentID, targetPositionContentID: ContentID | null, relativePosition: "before" | "after") { moveTabToPanelReducer(orgPanelID, targetPanelID, tabContentID, targetPositionContentID, relativePosition, panelUtility, panelGlobalProps) };
-
-    function moveTabInPanel(panelID: PanelID, tabContentID: ContentID, targetPositionContentID: ContentID | null, relativePosition: "before" | "after") { moveTabInPanelReducer(panelID, tabContentID, targetPositionContentID, relativePosition, panelUtility, panelGlobalProps) };
-
-    // recalcualte panel position after resize
+    // after mount, observe the workspace container for resize
     useEffect(() => {
-        let refStore = selfRef.current!;
-        panelGlobalProps!.resizeObserver!.observe(refStore);
+        workspaceProps!.resizeObserver!.observe(workspaceContainerRef.current!);
         return () => {
-            if (refStore) panelGlobalProps!.resizeObserver!.unobserve(refStore);
+            workspaceProps!.resizeObserver!.disconnect();
         };
     }, []);
 
     // render content
     // TODO
     const contentRenderList = [];
-    for (let contentID in contentReference) {
-        const contentMeta = contentReference[contentID];
+    for (let pageID in pageDataReference) {
+        const contentMeta = pageDataReference[pageID];
         const parentPanelMeta = panelPositionReference[contentMeta.parentPanelID];
 
         if (parentPanelMeta) {
@@ -102,28 +97,34 @@ export default function WorkspaceContainer({ initialWorkspaceProps, workspaceID,
                 height: parentPanelMeta.height
             };
             contentRenderList.push(
-                <div className="bg-orange-200 absolute z-10" style={contentStyle} key={contentID}></div>
+                <div className="bg-orange-200 absolute z-10" style={contentStyle} key={pageID}></div>
             );
         }
     }
 
     return (
         <WorkspaceConfigContext.Provider value={config}>
-            <WorkspaceHandlerContext.Provider value={workspaceHandler}>
+            <WorkspaceActionContext.Provider value={workspaceAction}>
                 <WorkspacePropsContext.Provider value={workspaceProps}>
                     <WorkspaceUtilityContext.Provider value={workspaceUtility}>
-                        <div className="flex h-full w-full bg-white relative overflow-auto" ref={selfRef}>
-                            <div className="overflow-visible absolute h-full w-full">
-                                {contentRenderList}
+                        <WorkspaceDragPropsContext.Provider value={workspaceDragProps}>
+                            <div className={`flex h-full w-full bg-white relative overflow-hidden ${draggedData ? "cursor-not-allowed " + workspaceDragProps.dragCursorStyle : ""}`} ref={workspaceContainerRef}>
+                                <div className="overflow-visible absolute h-full w-full">
+                                    {contentRenderList}
+                                </div>
+                                <div className="flex h-full w-full bg-white relative">
+                                    <Panel panelID={initialWorkspaceProps.topPanelID} dimensionProportion={1} />
+                                </div>
+                                <Modal ref={modalInterfaceRef} />
+                                <div className={`bg-blue-200 bg-opacity-60 absolute h-full w-full z-50 ${workspaceDragProps?.workspaceMask == "workspace" ? "flex" : "hidden"}`} />
+                                <DragIcon draggedData={draggedData} rootElementRef={workspaceContainerRef} />
                             </div>
-                            <div className="flex h-full w-full bg-white relative">
-                                <Panel panelID={topPanelID} />
-                            </div>
-                            <Modal ref={modalInterfaceRef} />
-                        </div>
+                        </WorkspaceDragPropsContext.Provider>
                     </WorkspaceUtilityContext.Provider>
                 </WorkspacePropsContext.Provider>
-            </WorkspaceHandlerContext.Provider>
+            </WorkspaceActionContext.Provider>
         </WorkspaceConfigContext.Provider>
     );
 }
+
+
