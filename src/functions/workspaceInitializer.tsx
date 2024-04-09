@@ -2,8 +2,8 @@ import { MutableRefObject, RefObject } from "react";
 import DefaultPage from "../components/defaultPage";
 import { PageDataReference, PanelDivisionReference, PanelFocusReference, PanelPageListReference, PanelPosition, PanelPositionReference, WorkspaceConfig, WorkspaceProps, WorkspaceUtility } from "../types/workspaceTypes";
 
-// const topPanelID = getRandomID();
-// const newContentID = getRandomID();
+// const topPanelID = getSafeRandomID();
+// const newContentID = getSafeRandomID();
 
 
 export function getEmptyWorkspaceProps() {

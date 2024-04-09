@@ -30,7 +30,6 @@ export function PanelTopBar({ panelID }: { panelID: PanelID }) {
     }
     const dragOverCallback = (_e: MouseEvent)=>{}
     const dropCallback = (_e: MouseEvent)=>{
-        setIsDragOverEmptyArea(false);
         const orgPanelID = workspaceDragProps!.draggedData!.panelID;
         const draggedPageID = workspaceDragProps!.draggedData!.pageID;
         workspaceDragProps!.setDraggedData(null);
@@ -57,6 +56,11 @@ export function PanelTopBar({ panelID }: { panelID: PanelID }) {
         }
 
     }, [workspaceProps!.panelFocusReference[panelID]]);
+
+    // reset drop target states when drag is over
+    useEffect(() => {
+        if (!workspaceDragProps!.draggedData) setIsDragOverEmptyArea(false);
+    }, [workspaceDragProps!.draggedData]);
 
     // render tabs
     const pageIDList = workspaceProps!.panelPageListReference[panelID];
@@ -160,7 +164,7 @@ function getFullyVisibleDelta(tabElement: HTMLDivElement, containerElement: HTML
 }
 
 function scrollToFocusedTab(tabListContainerRef: RefObject<HTMLDivElement>, focusedPageID: PageID) {
-    const focusedTabElement = document.getElementById(`${focusedPageID}-tab`)! as HTMLDivElement;
+    const focusedTabElement = document.getElementById(`${focusedPageID}-pageTab`)! as HTMLDivElement;
     const [beforeDelta, afterDelta] = getFullyVisibleDelta(focusedTabElement, tabListContainerRef.current!);
 
     if (beforeDelta > 0) {

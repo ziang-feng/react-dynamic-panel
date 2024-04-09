@@ -6,8 +6,23 @@ export function getRemPxSize(document: Document) {
     return parseFloat(getComputedStyle(document.documentElement).fontSize);
 }
 
-export function getWorkspaceRandomID(workspaceID: WorkspaceID, type: "panel" | "page") {
-    return workspaceID + "-" + type + "-" + Math.floor(Math.random() * Date.now() + Date.now()).toString(32);
+export function getRandomID(workspaceID: WorkspaceID, type: "panel" | "page") {
+    return workspaceID + "-" + type + "-" + Math.random().toString(36).substring(2,10);
+}
+
+export function getSafeRandomID(workspaceID: WorkspaceID, type: "panel" | "page", workspaceProps:WorkspaceProps) {
+    let randomID = getRandomID(workspaceID, type);
+    if (type == "panel") {
+        while (randomID in workspaceProps.panelDivisionReference) {
+            randomID = getRandomID(workspaceID, type);
+        }
+    } 
+    else if (type == "page") {
+        while (randomID in workspaceProps.pageDataReference) {
+            randomID = getRandomID(workspaceID, type);
+        }
+    }
+    return randomID;
 }
 
 export function DFSGetFirstEndPanel(startPanelDivision: PanelDivision, panelDivisionReference: PanelDivisionReference, avoidPanelID?: PanelID): PanelID | null {

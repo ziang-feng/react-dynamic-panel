@@ -1,13 +1,13 @@
 import DefaultPage from "../components/defaultPage";
 import { Alert } from "../components/modalComponents/alert";
 import { WorkspaceUtility, WorkspaceProps, PanelID, PageData, PageID, WorkspaceConfig, DivisionDirection } from "../types/workspaceTypes";
-import { DFSGetFirstEndPanel, createWorkspacePropsCopy, getAllPageListUnderPanel, getAllSubpanelIDsUnderPanel, getParentPanelID, getTrueProportionList, getWorkspaceRandomID, recalcualteDivisionProportion, shouldPanelDivide } from "./utility";
+import { DFSGetFirstEndPanel, createWorkspacePropsCopy, getAllPageListUnderPanel, getAllSubpanelIDsUnderPanel, getParentPanelID, getTrueProportionList, getSafeRandomID, recalcualteDivisionProportion, shouldPanelDivide } from "./utility";
 
 namespace WorkspaceActionHandler {
     export function createNewPageInPanel(workspaceProps: WorkspaceProps, panelID: PanelID, newPageData?: PageData, afterPageID?: PageID): WorkspaceProps {
         const updatedWorkspaceProps = createWorkspacePropsCopy(workspaceProps);
         if (!newPageData) {
-            const newPageID = getWorkspaceRandomID(workspaceProps.workspaceID, "page");
+            const newPageID = getSafeRandomID(workspaceProps.workspaceID, "page", updatedWorkspaceProps);
             newPageData = {
                 pageID: newPageID,
                 name: `New Page (${newPageID})`,
@@ -93,7 +93,7 @@ namespace WorkspaceActionHandler {
             newPageID = movedPageID;
         } else {
             // if page is not moved, create new default page
-            newPageID = getWorkspaceRandomID(workspaceProps.workspaceID, "page");
+            newPageID = getSafeRandomID(workspaceProps.workspaceID, "page", updatedWorkspaceProps);
             const newPageData = {
                 pageID: newPageID,
                 name: `New Tab (${newPageID})`,
@@ -127,7 +127,7 @@ namespace WorkspaceActionHandler {
 
             // first, we need to create two new subpanels
             // one of the subpanel will inherent the division, focus, and the pagelist of the initiatePanel; the other will be a new panel containing the new page (or the moved page)
-            const inherentSubPanelID = getWorkspaceRandomID(workspaceProps.workspaceID, "panel");
+            const inherentSubPanelID = getSafeRandomID(workspaceProps.workspaceID, "panel", updatedWorkspaceProps);
             const inherentSubPanel = {
                 panelID: inherentSubPanelID,
                 division: {
@@ -137,7 +137,13 @@ namespace WorkspaceActionHandler {
                 focus: updatedWorkspaceProps.panelFocusReference[initiatePanelID],
                 pageList: updatedWorkspaceProps.panelPageListReference[initiatePanelID],
             };
-            const newSubPanelID = getWorkspaceRandomID(workspaceProps.workspaceID, "panel");
+
+            // register the division, focus, and pagelist for inherent sub panel
+            updatedWorkspaceProps.panelDivisionReference[inherentSubPanel.panelID] = inherentSubPanel.division;
+            updatedWorkspaceProps.panelFocusReference[inherentSubPanel.panelID] = inherentSubPanel.focus;
+            updatedWorkspaceProps.panelPageListReference[inherentSubPanel.panelID] = inherentSubPanel.pageList;
+
+            const newSubPanelID = getSafeRandomID(workspaceProps.workspaceID, "panel", updatedWorkspaceProps);
             const newSubPanel = {
                 panelID: newSubPanelID,
                 division: {
@@ -154,10 +160,7 @@ namespace WorkspaceActionHandler {
             delete updatedWorkspaceProps.panelFocusReference[initiatePanelID];
             delete updatedWorkspaceProps.panelPageListReference[initiatePanelID];
 
-            // register the division, focus, and pagelist for the new subpanels
-            updatedWorkspaceProps.panelDivisionReference[inherentSubPanel.panelID] = inherentSubPanel.division;
-            updatedWorkspaceProps.panelFocusReference[inherentSubPanel.panelID] = inherentSubPanel.focus;
-            updatedWorkspaceProps.panelPageListReference[inherentSubPanel.panelID] = inherentSubPanel.pageList;
+            // register the division, focus, and pagelist for the new subpanel
             updatedWorkspaceProps.panelDivisionReference[newSubPanel.panelID] = newSubPanel.division;
             updatedWorkspaceProps.panelFocusReference[newSubPanel.panelID] = newSubPanel.focus;
             updatedWorkspaceProps.panelPageListReference[newSubPanel.panelID] = newSubPanel.pageList;
@@ -190,7 +193,7 @@ namespace WorkspaceActionHandler {
         else if (divisionDirection == updatedWorkspaceProps.panelDivisionReference[parentPanelID].divisionDirection) {
             // if the parent division direction is the same, create a new subpanel in the parent
             // create new sub panel
-            const newSubPanelID = getWorkspaceRandomID(workspaceProps.workspaceID, "panel");
+            const newSubPanelID = getSafeRandomID(workspaceProps.workspaceID, "panel", updatedWorkspaceProps);
             const newSubPanel = {
                 panelID: newSubPanelID,
                 division: {
@@ -263,7 +266,7 @@ namespace WorkspaceActionHandler {
 
         // if this panel does not have a parent, then this panel is the top panel and this tab is the only tab in workspace, replace this tab with default tab; if already default tab, do nothing
         if (updatedWorkspaceProps.pageDataReference[pageID].component != DefaultPage) {
-            const newPageID = getWorkspaceRandomID(updatedWorkspaceProps.workspaceID, "page");
+            const newPageID = getSafeRandomID(updatedWorkspaceProps.workspaceID, "page", updatedWorkspaceProps);
             const newPageData = {
                 pageID: newPageID,
                 name: `New Tab (${newPageID})`,

@@ -65,7 +65,7 @@ export function PanelPageTab({ panelID, pageID }: PanelTabProps) {
 
 
     return (
-        <div className={`min-w-44 h-full flex flex-row w-min relative ${workspaceProps!.panelFocusReference[panelID] == pageID ? "bg-background text-foreground-high-1" : "bg-background-low-1 text-foreground-low-1"} ${workspaceDragProps!.draggedData ? "" : "hover:bg-background-high-1"}`} ref={selfRef} id={`${pageID}-tab`} onMouseDown={(e: React.MouseEvent<HTMLDivElement, MouseEvent>) => dragMouseDownHandler(e.nativeEvent)}>
+        <div className={`min-w-44 h-full flex flex-row w-min relative ${workspaceProps!.panelFocusReference[panelID] == pageID ? "bg-background text-foreground-high-1" : "bg-background-low-1 text-foreground-low-1"} ${workspaceDragProps!.draggedData ? "" : "hover:bg-background-high-1"}`} ref={selfRef} id={`${pageID}-pageTab`} onMouseDown={(e: React.MouseEvent<HTMLDivElement, MouseEvent>) => dragMouseDownHandler(e.nativeEvent)} >
             <button className="flex px-2 flex-grow" onClick={() => workspaceAction!.focusPageInPanel(panelID, pageID)}>
                 <span className="my-auto">{icon}</span>
                 <span className="my-auto pl-2 whitespace-nowrap mr-auto">{pageData.name}</span>

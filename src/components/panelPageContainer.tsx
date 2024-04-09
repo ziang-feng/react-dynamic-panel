@@ -25,6 +25,7 @@ export function PanelPageContainer({ panelID }: { panelID: PanelID }) {
         workspaceProps!.resizeObserver!.observe(selfRef.current!);
     }, []);
 
+    // reset drop target states when drag is over
     useEffect(() => {
         if (!workspaceDragProps!.draggedData) setShouldDropShadowShow(false);
     }, [workspaceDragProps!.draggedData]);

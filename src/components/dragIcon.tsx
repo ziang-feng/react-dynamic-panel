@@ -15,7 +15,7 @@ export default function DragIcon({draggedData, rootElementRef}:{draggedData: Dra
         // if something is dragged, add mousemove event listener to update the drag icon position
         if (draggedData) {
             rootElementRectRef.current = rootElementRef.current!.getBoundingClientRect();
-            const newDraggedTabDimension = document.getElementById(`${draggedData.pageID}-tab`)!.getBoundingClientRect();
+            const newDraggedTabDimension = document.getElementById(`${draggedData.pageID}-pageTab`)!.getBoundingClientRect();
             setDraggedTabDimension(newDraggedTabDimension);
             if (draggedData.type=="pageListItem"){
                 const xOffset = newDraggedTabDimension.width * draggedData.startPositionRelative.leftProportion;
