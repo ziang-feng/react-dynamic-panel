@@ -81,7 +81,7 @@ namespace WorkspaceActionHandler {
         // now we can check if the workspace has enough space after panel deletion
         if (!shouldPanelDivide(initiatePanelID, workspaceProps.topPanelID, divisionDirection, updatedWorkspaceProps.panelDivisionReference, config)) {
             // if not, show modal notification and return
-            workspaceUtility.showModalWithData!({ component: Alert });
+            workspaceUtility.showModalWithData!({ component: Alert, props:{message:""} });
             return workspaceProps;
         }
 
