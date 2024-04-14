@@ -1,8 +1,8 @@
-import { FC } from "react";
+import { FC, ReactNode } from "react";
 
-export interface ModalData { component: FC | null, props?: Record<string, unknown> };
+export interface ModalData { innerComponent: ReactNode | null, preventBackdropDismiss?: boolean, infiniteHeight?:boolean };
 
 export interface ModalInterface {
-    showModalWithData(modalData: { component: FC | null, props?: Record<string, unknown> }): void,
+    showModalWithData(modalData: ModalData): void,
     hideModal(): void
 }

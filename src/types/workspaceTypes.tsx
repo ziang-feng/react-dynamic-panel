@@ -11,7 +11,8 @@ export interface WorkspaceUtility {
     setPanelDivisionReference: Dispatch<PanelDivisionReference>;
     setPanelPageListReference: Dispatch<PanelPageListReference>;
     setDraggedData: Dispatch<DraggedData|null>;
-    showModalWithData?: (modalData: ModalData) => void
+    showModalWithData?: (modalData: ModalData) => void;
+    hideModal?: () => void;
 }
 
 export interface WorkspaceProps {
@@ -40,7 +41,11 @@ export interface WorkspaceAction {
 export interface WorkspaceConfig {
     panelMinimumDimensionRem: { height: number, width: number },
     panelResizeHandleSizeRem: number,
-    dragConfig: DragConfig
+    dragConfig: DragConfig,
+    panelPageTabConfig: {
+        contextMenuItemHeightRem: number,
+        contextMenuWidthRem: number,
+    }
 }
 
 export interface DragConfig {
@@ -68,6 +73,8 @@ export interface PageData {
     persist: boolean;
     preservedState?: any;
     props?: any;
+    confirmClose?: boolean;
+    locked?: boolean;
 }
 
 export interface PanelPosition {
@@ -117,4 +124,10 @@ export interface ElementRect {
     y: number;
     width: number;
     height: number;
+}
+
+export interface ContextMenuDisplayState {
+    relativeAnchorPosition: { x: number, y: number };
+    clearanceRem: { left: number, right: number, top: number, bottom: number};
+    visible: boolean;
 }

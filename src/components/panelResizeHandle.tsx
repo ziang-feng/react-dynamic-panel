@@ -26,6 +26,7 @@ export function PanelResizeHandle({ panelID, handleIndex, panelRef}: { panelID: 
     }
 
     function mousedownHandler(event: MouseEvent) {
+        if (event.button != 0) return; // only left click
         event.preventDefault();
         mouseDownMaskHandler();
         // set the resize bounds

@@ -17,11 +17,13 @@ export function useDrag(elementRef: React.RefObject<HTMLElement>, dragConfig:Dra
         }
     }
     const defaultMouseUp = (e: MouseEvent) => {
+        if (e.button != 0) return; // only left click
         window.removeEventListener("mousemove", detectDrag);
         window.removeEventListener("mouseup", defaultMouseUp);
         mouseUpCallback(e);
     }
     const dragEndHandler = (e: MouseEvent) => {
+        if (e.button != 0) return; // only left click
         e.preventDefault();
         e.stopPropagation();
         window.removeEventListener("mouseup", dragEndHandler);
@@ -29,6 +31,7 @@ export function useDrag(elementRef: React.RefObject<HTMLElement>, dragConfig:Dra
         dragEndCallback(e);
     }
     const mouseDownHandler = (e: MouseEvent) => {
+        if (e.button != 0) return; // only left click
         originalPosition.current = {x: e.clientX, y: e.clientY};
         window.addEventListener("mousemove", detectDrag);
         window.addEventListener("mouseup", defaultMouseUp);

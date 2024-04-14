@@ -36,6 +36,7 @@ export default function WorkspaceContainer({ initialWorkspaceProps, config }: { 
         setPanelPageListReference,
         setDraggedData,
         showModalWithData: modalInterfaceRef.current?.showModalWithData,
+        hideModal: modalInterfaceRef.current?.hideModal
     };
 
     // for resizeobserver use only
@@ -116,7 +117,7 @@ export default function WorkspaceContainer({ initialWorkspaceProps, config }: { 
                                     <Panel panelID={initialWorkspaceProps.topPanelID} dimensionProportion={1} />
                                 </div>
                                 <Modal ref={modalInterfaceRef} />
-                                <div className={`bg-blue-200 bg-opacity-60 absolute h-full w-full z-50 ${workspaceDragProps?.workspaceMask == "workspace" ? "flex" : "hidden"}`} />
+                                <div className={`bg-blue-200 bg-opacity-60 absolute h-full w-full z-50 ${workspaceDragProps?.workspaceMask == "workspace" ? "flex" : "hidden"}`}  onMouseDown={(e)=>{e.preventDefault()}}/>
                                 <DragIcon draggedData={draggedData} rootElementRef={workspaceContainerRef} />
                             </div>
                         </WorkspaceDragPropsContext.Provider>

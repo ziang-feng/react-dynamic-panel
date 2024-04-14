@@ -261,7 +261,7 @@ export function getWorkspaceActionFromHandler(workspaceProps:WorkspaceProps, wor
             WorkspaceActionHandler.dispatchWorkspacePropsUpdate(workspaceProps, updatedWorkspaceProps, workspaceUtility, resizeObserver);
         }, 
         closePageInPanel: (panelID: PanelID, pageID: PageID) => {
-            const updatedWorkspaceProps = WorkspaceActionHandler.closePageInPanel(workspaceProps,workspaceConfig, panelID, pageID);
+            const updatedWorkspaceProps = WorkspaceActionHandler.closePageInPanel(workspaceProps, workspaceUtility, workspaceConfig, panelID, pageID);
             WorkspaceActionHandler.dispatchWorkspacePropsUpdate(workspaceProps, updatedWorkspaceProps, workspaceUtility, resizeObserver);
         },
         focusPageInPanel: (panelID: PanelID, pageID: PageID) => {
@@ -294,4 +294,15 @@ export function getPanelPageContainerRenderedPosition(pageContainerHTMLElement: 
         width: pageContainerPosition.width,
         height: pageContainerPosition.height
     };
+}
+
+export function getPositionRelativeClearance(position: {x: number, y: number}, rootElementRect: ElementRect) {
+    // get clearance from top, right, bottom, left of the root element in rem
+    const documentRemSize = getRemPxSize(document);
+    return {
+        top: (position.y - rootElementRect.y) / documentRemSize,
+        right: (rootElementRect.x + rootElementRect.width - position.x) / documentRemSize,
+        bottom: (rootElementRect.y + rootElementRect.height - position.y) / documentRemSize,
+        left: (position.x - rootElementRect.x) / documentRemSize
+    }
 }

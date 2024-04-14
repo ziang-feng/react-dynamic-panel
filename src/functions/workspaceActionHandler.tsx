@@ -1,5 +1,5 @@
 import DefaultPage from "../components/defaultPage";
-import { Alert } from "../components/modalComponents/alert";
+import { CloseDefaultPageAlert, PanelSplitAlert } from "../components/modalComponents/alert";
 import { WorkspaceUtility, WorkspaceProps, PanelID, PageData, PageID, WorkspaceConfig, DivisionDirection } from "../types/workspaceTypes";
 import { DFSGetFirstEndPanel, createWorkspacePropsCopy, getAllPageListUnderPanel, getAllSubpanelIDsUnderPanel, getParentPanelID, getTrueProportionList, getSafeRandomID, recalcualteDivisionProportion, shouldPanelDivide } from "./utility";
 
@@ -81,7 +81,7 @@ namespace WorkspaceActionHandler {
         // now we can check if the workspace has enough space after panel deletion
         if (!shouldPanelDivide(initiatePanelID, workspaceProps.topPanelID, divisionDirection, updatedWorkspaceProps.panelDivisionReference, config)) {
             // if not, show modal notification and return
-            workspaceUtility.showModalWithData!({ component: Alert, props:{message:""} });
+            workspaceUtility.showModalWithData!({ innerComponent: <PanelSplitAlert dismissCallback={workspaceUtility.hideModal!} divisionDirection={divisionDirection}/> });
             return workspaceProps;
         }
 
@@ -233,7 +233,7 @@ namespace WorkspaceActionHandler {
         return updatedWorkspaceProps;
     }
 
-    export function closePageInPanel(workspaceProps: WorkspaceProps, config: WorkspaceConfig, panelID: PanelID, pageID: PageID): WorkspaceProps {
+    export function closePageInPanel(workspaceProps: WorkspaceProps, workspaceUtility: WorkspaceUtility , config: WorkspaceConfig, panelID: PanelID, pageID: PageID): WorkspaceProps {
         // if page is not the only page in panel, just need to delete the page
         const updatedWorkspaceProps = createWorkspacePropsCopy(workspaceProps);
         if (workspaceProps.panelPageListReference[panelID].length > 1) {
@@ -279,6 +279,9 @@ namespace WorkspaceActionHandler {
             updatedWorkspaceProps.panelFocusReference[panelID] = newPageID;
             updatedWorkspaceProps.activePanelID = panelID;
             delete updatedWorkspaceProps.pageDataReference[pageID];
+        } else {
+            // show alert that the last tab cannot be closed
+            workspaceUtility.showModalWithData!({ innerComponent: <CloseDefaultPageAlert dismissCallback={workspaceUtility.hideModal!}/> });
         }
         return updatedWorkspaceProps;
     }

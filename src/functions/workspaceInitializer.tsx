@@ -61,6 +61,10 @@ export function getDefaultConfig() {
     return {
         panelMinimumDimensionRem: { height: 16, width: 16 },
         panelResizeHandleSizeRem: 0.2,
+        panelPageTabConfig: {
+            contextMenuItemHeightRem: 2,
+            contextMenuWidthRem: 10,
+        },
         dragConfig: {
             edgeScrollActiveWidthRem: 3,
             edgeScrollMinSpeed: 5,

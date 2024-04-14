@@ -49,7 +49,7 @@ export default function DragIcon({draggedData, rootElementRef}:{draggedData: Dra
     let icon = <FontAwesomeIcon className='' icon={iconId?iconId:faFile} />;
     let name = draggedData ? panelGlobalProps!.pageDataReference[draggedData.pageID].name :"";
     return (
-        <div className={`px-2 rounded flex-row absolute bg-foreground-high-2 text-background-low-2 shadow z-50 overflow-hidden opacity-70 ${(draggedData && draggedData?.pageID==currentDraggedTab) ? "flex" : "hidden"}`} style={{top:mousePosition.y-dragCenterOffset.y, left:mousePosition.x-dragCenterOffset.x, width: draggedTabDimension.width, height: draggedTabDimension.height }}>
+        <div className={`px-2 rounded flex-row absolute bg-foreground-high-2 text-background-low-2 shadow z-50 overflow-hidden opacity-70 ${(draggedData && draggedData?.pageID==currentDraggedTab) ? "flex" : "hidden"}`} style={{top:mousePosition.y-dragCenterOffset.y, left:mousePosition.x-dragCenterOffset.x, width: draggedTabDimension.width, height: draggedTabDimension.height }} onMouseDown={(e)=>{e.preventDefault()}}>
             <span className="my-auto">{icon}</span>
             <span className="my-auto pl-2 whitespace-nowrap mr-auto overflow-hidden text-ellipsis">{name}</span>
         </div>
