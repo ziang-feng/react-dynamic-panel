@@ -85,7 +85,11 @@ export function PanelPageTab({ panelID, pageID }: PanelTabProps) {
     const onContextMenuHandler = (e:React.MouseEvent<HTMLDivElement, MouseEvent>) => {
         e.preventDefault();
         const clearanceRem = getPositionRelativeClearance(e.nativeEvent, workspaceProps!.workspaceContainerRef!.current!.getBoundingClientRect());
-        console.log(clearanceRem)
+        setContextMenuDisplayState({
+            relativeAnchorPosition: { x: e.clientX, y: e.clientY },
+            clearanceRem: clearanceRem,
+            visible: true
+        });
     }
 
     return (
