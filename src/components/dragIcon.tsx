@@ -3,6 +3,7 @@ import { PageID, ElementRect, DraggedData } from "../types/workspaceTypes";
 import { faFile } from "@fortawesome/free-regular-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useContext, useEffect, useRef, useState } from "react";
+import { isPositionInElement } from "../functions/utility";
 
 export default function DragIcon({draggedData, rootElementRef}:{draggedData: DraggedData|null, rootElementRef: React.RefObject<HTMLDivElement>}){
     const panelGlobalProps = useContext(WorkspacePropsContext);
@@ -24,8 +25,16 @@ export default function DragIcon({draggedData, rootElementRef}:{draggedData: Dra
                 setDragCenterOffset(newDragCenterOffset);
             }
             else if (draggedData.type=="tab"){
-                const newDragCenterOffset = {x: draggedData.startPosition.x - newDraggedTabDimension.x, y: draggedData.startPosition.y - newDraggedTabDimension.y};
-                setDragCenterOffset(newDragCenterOffset);
+                // if startPosition is in element, calculate correct offset
+                if (isPositionInElement(draggedData.startPosition, newDraggedTabDimension)){
+                    const newDragCenterOffset = {x: draggedData.startPosition.x - newDraggedTabDimension.x, y: draggedData.startPosition.y - newDraggedTabDimension.y};
+                    setDragCenterOffset(newDragCenterOffset);
+                }
+                // else, startPosition is not in element, can only be from click move, use center
+                else{
+                    const newDragCenterOffset = {x: newDraggedTabDimension.width/2, y: newDraggedTabDimension.height/2};
+                    setDragCenterOffset(newDragCenterOffset);
+                }
             }
 
             const dragHandler = (e: MouseEvent) => {

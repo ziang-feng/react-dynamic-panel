@@ -1,23 +1,21 @@
-import { Dispatch, FC, Ref, RefObject } from "react";
+import { Dispatch, FC, RefObject } from "react";
 import { IconDefinition } from "@fortawesome/fontawesome-svg-core";
-import { ModalData } from "./modalTypes";
+import { ModalData, ModalInterface } from "./modalTypes";
+import { MutablePageData, NewPageData, WorkspaceInterface } from "../functions/workspaceExternalInterface";
 
 
 export interface WorkspaceUtility {
-    setActivePanelID: Dispatch<string>;
     setPageDataReference: Dispatch<PageDataReference>;
     setPanelPositionReference: Dispatch<PanelPositionReference>;
     setPanelFocusReference: Dispatch<PanelFocusReference>;
     setPanelDivisionReference: Dispatch<PanelDivisionReference>;
     setPanelPageListReference: Dispatch<PanelPageListReference>;
-    setDraggedData: Dispatch<DraggedData|null>;
-    showModalWithData?: (modalData: ModalData) => void;
-    hideModal?: () => void;
+    setWorkspaceContextMenuState: Dispatch<WorkspaceContextMenuState>;
+    modalInterfaceRef: RefObject<ModalInterface>;
 }
 
 export interface WorkspaceProps {
     workspaceID: WorkspaceID;
-    activePanelID: PanelID;
     pageDataReference: PageDataReference;
     panelPositionReference: PanelPositionReference;
     panelFocusReference: PanelFocusReference;
@@ -29,22 +27,27 @@ export interface WorkspaceProps {
 }
 
 export interface WorkspaceAction {
-    createNewPageInPanel: (panelID: PanelID, newPageData?: PageData, afterPageID?: PageID) => WorkspaceProps;
-    createNewDivision: (initiatePanelID: string, divisionDirection: DivisionDirection, newPanelPosition: "after" | "before", movedPageID?: string | undefined) => WorkspaceProps;
-    closePageInPanel: (panelID: PanelID, pageID: PageID) => WorkspaceProps;
-    focusPageInPanel: (panelID: PanelID, pageID: PageID) => WorkspaceProps;
-    movePage: (orgPanelID: PanelID, targetPanelID: PanelID, pageID: PageID, targetPositionPageID?: PageID) => WorkspaceProps;
-    destroySubPanel: (parentPanelID: PanelID, subpanelID: PanelID, panelPageAction: "delete" | "move" | "ignore", pageMoveTargetPanelID?: PanelID) => WorkspaceProps;
-    resizePanelDivision :(panelID: PanelID, handleIndex: number, resizeStartProportionList: number[], percentageDelta: number, deltaRange: number[])=> WorkspaceProps;
+    createNewPageInPanel: (panelID: PanelID, newPageData?: PageData, beforePageID?: PageID) => void;
+    createNewDivision: (initiatePanelID: string, divisionDirection: DivisionDirection, newPanelPosition: "after" | "before", movedPageID?: string, initializeNewPanelWithNewPageData?: NewPageData) => PageID | void;
+    closePageInPanel: (panelID: PanelID, pageID: PageID) => void;
+    closeOtherPagesInPanel: (panelID: PanelID, initiatePageID: PageID, direction: "left" | "right" | "both") => void;
+    focusPageInPanel: (panelID: PanelID, pageID: PageID) => void;
+    movePage: (orgPanelID: PanelID, targetPanelID: PanelID, pageID: PageID, targetPositionPageID?: PageID, forced?: boolean) => void;
+    destroySubPanel: (parentPanelID: PanelID, subpanelID: PanelID, panelPageAction: "delete" | "move" | "ignore", pageMoveTargetPanelID?: PanelID) => void;
+    resizePanelDivision :(panelID: PanelID, handleIndex: number, resizeStartProportionList: number[], percentageDelta: number, deltaRange: number[])=> void;
+    togglePageLock: (pageID: PageID) => void;
+    updatePageData: (pageID: PageID, updatedPageData: MutablePageData) => void;
 }
 
 export interface WorkspaceConfig {
     panelMinimumDimensionRem: { height: number, width: number },
     panelResizeHandleSizeRem: number,
     dragConfig: DragConfig,
-    panelPageTabConfig: {
-        contextMenuItemHeightRem: number,
-        contextMenuWidthRem: number,
+    contextMenuConfig: {
+        panelPageTab: {
+            itemHeightRem: number,
+            itemWidthRem: number,
+        },
     }
 }
 
@@ -68,14 +71,29 @@ export interface PageData {
     pageID: PageID;
     name: string;
     icon?: IconDefinition;
-    component: FC;
     parentPanelID: PanelID;
     persist: boolean;
-    preservedState?: any;
-    props?: any;
     confirmClose?: boolean;
     locked?: boolean;
+    customContextMenuItems?: ContextMenuItem[];
+    creationTimestamp: number;
+    lastFocusedTimestamp: number;
+    renderData:  PageRenderData
 }
+export type PageRenderData = {
+    type: "selfManaged",
+    componentInstance: JSX.Element
+} | {
+    type: "externallyManaged",
+}
+export interface ContextMenuItem {
+    key: string;
+    label: string;
+    icon?: IconDefinition;
+    action: (workspaceInterface:WorkspaceInterface, pageID:PageID) => void;
+    disabled: boolean;
+}
+
 
 export interface PanelPosition {
     panelID: PanelID;
@@ -126,8 +144,13 @@ export interface ElementRect {
     height: number;
 }
 
-export interface ContextMenuDisplayState {
-    relativeAnchorPosition: { x: number, y: number };
-    clearanceRem: { left: number, right: number, top: number, bottom: number};
-    visible: boolean;
-}
+export interface WorkspaceContextMenuState {
+    relativeMousePosition: { x: number, y: number },
+    relativeClearance: { left: number, right: number, top: number, bottom: number},
+    contextData: ContextData | null,
+};
+
+export interface ContextData {
+    type: "panelPageTab",
+    pageID: PageID,
+} 

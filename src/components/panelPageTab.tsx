@@ -1,14 +1,13 @@
-import { ContextMenuDisplayState, PageID, PanelID } from "../types/workspaceTypes"
+import { PageData, PageID, PanelID, WorkspaceAction, WorkspaceUtility } from "../types/workspaceTypes"
 import { WorkspacePropsContext, WorkspaceConfigContext, WorkspaceDragPropsContext, WorkspaceActionContext, WorkspaceUtilityContext } from "../WorkspaceContainer";
 import { faFile } from "@fortawesome/free-regular-svg-icons";
-import { faXmark } from "@fortawesome/free-solid-svg-icons";
+import { faLock, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useContext, useRef, useState, useEffect } from "react";
 import { useDrag } from "../hooks/useDrag";
 import { useDragDropTarget } from "../hooks/useDragDropTarget";
-import { CloseTabConfirmation } from "./modalComponents/confirmation";
-import { getPositionRelativeClearance } from "../functions/utility";
-import { PanelPageTabContextMenu } from "./panelPageTabContextMenu";
+import { ClosePageConfirmation } from "./modalComponents/confirmation";
+import { canDropTargetAllowDrop, getPositionRelativeClearance } from "../functions/utility";
 
 interface PanelTabProps {
     panelID: PanelID,
@@ -23,7 +22,7 @@ export function PanelPageTab({ panelID, pageID }: PanelTabProps) {
     const workspaceUtility = useContext(WorkspaceUtilityContext);
 
     const pageData = workspaceProps!.pageDataReference[pageID];
-    const icon = pageData.icon ? <FontAwesomeIcon className='' icon={pageData.icon} /> : <FontAwesomeIcon className='' icon={faFile} />;
+    const icon = <FontAwesomeIcon className='h-4 w-4 my-auto' icon={pageData.icon?pageData.icon:faFile} />
 
     const selfRef = useRef<HTMLDivElement>(null);
 
@@ -42,11 +41,8 @@ export function PanelPageTab({ panelID, pageID }: PanelTabProps) {
     // for drop target
     const dragEnterCallback = (_e: MouseEvent) => {
         setHighlightMask(true);
-        if (workspaceDragProps!.draggedData!.pageID == pageID) {
-            workspaceDragProps!.setDragCursorStyle("");
-            return;
-        }
-        workspaceDragProps!.setDragCursorStyle("!cursor-move");
+        if (canDropTargetAllowDrop(workspaceProps!, workspaceDragProps!.draggedData!, pageID)) workspaceDragProps!.setDragCursorStyle("!cursor-move");
+        else workspaceDragProps!.setDragCursorStyle("");
     }
     const dragLeaveCallback = (_e: MouseEvent) => {
         setHighlightMask(false);
@@ -66,43 +62,37 @@ export function PanelPageTab({ panelID, pageID }: PanelTabProps) {
 
     useDragDropTarget(workspaceDragProps!.draggedData, selfRef, dragEnterCallback, dragOverCallback, dragLeaveCallback, dropCallback);
 
-    const closePageHandler = () => {
-        if (!pageData.confirmClose) {
-            workspaceAction!.closePageInPanel(panelID, pageID);
-        }
-        else {
-            workspaceUtility!.showModalWithData!({innerComponent: <CloseTabConfirmation dismissCallback={workspaceUtility!.hideModal!} closePageCallback={(pageData)=>{workspaceAction!.closePageInPanel(pageData.parentPanelID, pageData.pageID);}} closedPageData={pageData}/>})
-        }
-        
-    }
+    const closePageHandler = getClosePageSingleActionHandler(workspaceAction!, workspaceUtility!, pageData);
 
-    // custom context menu
-    const [contextMenuDisplayState, setContextMenuDisplayState ] = useState<ContextMenuDisplayState>({
-        relativeAnchorPosition: { x: 0, y: 0 },
-        clearanceRem: { left: 0, right: 0, top: 0, bottom: 0 },
-        visible: false
-    });
-    const onContextMenuHandler = (e:React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+    const onContextMenuHandler = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
         e.preventDefault();
-        const clearanceRem = getPositionRelativeClearance(e.nativeEvent, workspaceProps!.workspaceContainerRef!.current!.getBoundingClientRect());
-        setContextMenuDisplayState({
-            relativeAnchorPosition: { x: e.clientX, y: e.clientY },
-            clearanceRem: clearanceRem,
-            visible: true
-        });
+        const workspaceContainerRect = workspaceProps!.workspaceContainerRef!.current!.getBoundingClientRect();
+        const clearance = getPositionRelativeClearance(e.nativeEvent, workspaceContainerRect);
+        workspaceUtility!.setWorkspaceContextMenuState({ contextData: { type: "panelPageTab", pageID: pageID }, relativeMousePosition: { x: e.clientX - workspaceContainerRect.x, y: e.clientY - workspaceContainerRect.y }, relativeClearance: clearance });
     }
 
     return (
-        <div className={`min-w-44 h-full flex flex-row w-min relative ${workspaceProps!.panelFocusReference[panelID] == pageID ? "bg-background text-foreground-high-1" : "bg-background-low-1 text-foreground-low-1"} ${workspaceDragProps!.draggedData ? "" : "hover:bg-background-high-1"}`} ref={selfRef} id={`${pageID}-pageTab`} onMouseDown={(e: React.MouseEvent<HTMLDivElement, MouseEvent>) => dragMouseDownHandler(e.nativeEvent)} onContextMenu={onContextMenuHandler}>
+        <div className={`min-w-44 h-full flex flex-row flex-shrink-0 w-min relative ${workspaceProps!.panelFocusReference[panelID] == pageID ? "bg-background text-foreground-high-1" : "bg-background-low-1 text-foreground-low-1"} ${workspaceDragProps!.draggedData ? "" : "hover:bg-background-high-1"}`} ref={selfRef} id={`${pageID}-pageTab`} onMouseDown={(e: React.MouseEvent<HTMLDivElement, MouseEvent>) => dragMouseDownHandler(e.nativeEvent)} onContextMenu={onContextMenuHandler}>
             <button className="flex px-2 flex-grow" onClick={() => workspaceAction!.focusPageInPanel(panelID, pageID)}>
-                <span className="my-auto">{icon}</span>
+                {icon}
                 <span className="my-auto pl-2 whitespace-nowrap mr-auto">{pageData.name}</span>
             </button>
-            <button className={`px-2 text-foreground-low-2 border-r border-foreground-low-2 ${workspaceDragProps!.draggedData ? "" : "hover:bg-background-high-2 hover:text-foreground-high-2"}`} onClick={closePageHandler}>
-                <FontAwesomeIcon className='' icon={faXmark} />
+            <button className={`px-2 text-foreground-low-2 border-r border-foreground-low-2 ${pageData.locked ? "" : "hover:bg-background-high-2 hover:text-foreground-high-2"}`} onClick={pageData.locked ? () => workspaceAction!.focusPageInPanel(panelID, pageID) : closePageHandler}>
+                {pageData.locked ? <FontAwesomeIcon className='w-4 h-4' icon={faLock} /> : <FontAwesomeIcon className='w-4 h-4' icon={faXmark} />}
             </button>
             <div className={`absolute h-full w-full bg-background-high-2 flex text-foreground-high-2 font-bold ${workspaceDragProps!.draggedData?.type == "tab" ? "" : "hidden"} ${highlightMask ? "opacity-80" : "opacity-0"}`} />
-            <PanelPageTabContextMenu pageID={pageID} contextMenuDisplayState={contextMenuDisplayState} />
         </div>
     )
+}
+
+export function getClosePageSingleActionHandler(workspaceAction: WorkspaceAction, workspaceUtility: WorkspaceUtility, pageData: PageData) {
+    return () => {
+        if (!pageData.confirmClose) {
+            workspaceAction!.closePageInPanel(pageData.parentPanelID, pageData.pageID);
+        }
+        else {
+            workspaceUtility!.modalInterfaceRef.current!.showModalWithData!({ innerComponent: <ClosePageConfirmation dismissCallback={workspaceUtility!.modalInterfaceRef.current!.hideModal!} closePageCallback={(pageData) => { workspaceAction!.closePageInPanel(pageData.parentPanelID, pageData.pageID); }} closedPageData={pageData} /> })
+        }
+
+    }
 }

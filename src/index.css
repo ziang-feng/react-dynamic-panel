@@ -114,3 +114,26 @@ iframe {
   -webkit-user-select: none; /* Safari and Chrome */
   -ms-user-select: none; /* Internet Explorer/Edge */
 }
+
+/* Override */
+.border {
+  border-width: 0.0625rem;
+}
+.border-l {
+  border-left-width: 0.0625rem;
+}
+.border-r {
+  border-right-width: 0.0625rem;
+}
+
+hr {
+  border-top-width: 0.0625rem;
+}
+
+.scrollbar-hide {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none !important;
+}

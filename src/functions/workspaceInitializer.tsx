@@ -1,6 +1,6 @@
-import { MutableRefObject, RefObject } from "react";
+import { RefObject } from "react";
 import DefaultPage from "../components/defaultPage";
-import { PageDataReference, PanelDivisionReference, PanelFocusReference, PanelPageListReference, PanelPosition, PanelPositionReference, WorkspaceConfig, WorkspaceProps, WorkspaceUtility } from "../types/workspaceTypes";
+import { ContextMenuItem, PageDataReference, PageRenderData, PanelDivisionReference, PanelFocusReference, PanelPageListReference, PanelPositionReference, WorkspaceConfig, WorkspaceProps, WorkspaceUtility } from "../types/workspaceTypes";
 
 // const topPanelID = getSafeRandomID();
 // const newContentID = getSafeRandomID();
@@ -12,10 +12,15 @@ export function getEmptyWorkspaceProps() {
     const newPageID = "Page";
     const newPageData = {
         pageID: newPageID,
-        name: "New Tab",
-        component: DefaultPage,
+        name: "New Page",
         parentPanelID: topPanelID,
         persist: false,
+        creationTimestamp: Date.now(),
+        lastFocusedTimestamp: Date.now(),
+        renderData:{
+            type: "selfManaged",
+            componentInstance: <DefaultPage/>
+        } as PageRenderData
     };
     // set pageData ref
     const pageDataReference: PageDataReference = {
@@ -45,7 +50,6 @@ export function getEmptyWorkspaceProps() {
     // inital prop
     const initialProps: WorkspaceProps = {
         workspaceID: workspaceID,
-        activePanelID: topPanelID,
         pageDataReference,
         panelPositionReference: {},
         panelFocusReference,
@@ -61,9 +65,11 @@ export function getDefaultConfig() {
     return {
         panelMinimumDimensionRem: { height: 16, width: 16 },
         panelResizeHandleSizeRem: 0.2,
-        panelPageTabConfig: {
-            contextMenuItemHeightRem: 2,
-            contextMenuWidthRem: 10,
+        contextMenuConfig: {
+            panelPageTab: {
+                itemHeightRem: 2,
+                itemWidthRem: 15,
+            },
         },
         dragConfig: {
             edgeScrollActiveWidthRem: 3,
@@ -79,11 +85,13 @@ export function getDefaultConfig() {
     } as WorkspaceConfig;
 }
 
-export function initializeResizeObserver(workspaceUtility: WorkspaceUtility, panelPositionReferenceAccesser: RefObject<PanelPositionReference>, panelDivisionReferenceAccesser:RefObject<PanelDivisionReference>, workspaceRootContainerRef: RefObject<HTMLDivElement>) {
-    const resizeObserver = new ResizeObserver((entries) => {
+export function initializeResizeObserver(workspaceUtility: WorkspaceUtility, panelDivisionReferenceAccesser:RefObject<PanelDivisionReference>, workspaceRootContainerRef: RefObject<HTMLDivElement>) {
+    const resizeObserver = new ResizeObserver((_entries) => {
         const rootContainerRect = workspaceRootContainerRef.current!.getBoundingClientRect()
         const panelDivisionReference = panelDivisionReferenceAccesser.current!;
         const newPanelPositionReference: PanelPositionReference = {};
+        // reset context menu when panel/workspace are resized to prevent context menu from being displayed in the wrong position
+        workspaceUtility.setWorkspaceContextMenuState({ contextData: null, relativeMousePosition: { x: 0, y: 0 }, relativeClearance: { top: 0, right: 0, bottom: 0, left: 0 } });
 
         for (const panelID in panelDivisionReference){
             // skip panels that are not end panels

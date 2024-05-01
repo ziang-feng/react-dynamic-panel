@@ -1,20 +1,15 @@
 import DefaultPage from "../components/defaultPage";
-import { CloseDefaultPageAlert, PanelSplitAlert } from "../components/modalComponents/alert";
-import { WorkspaceUtility, WorkspaceProps, PanelID, PageData, PageID, WorkspaceConfig, DivisionDirection } from "../types/workspaceTypes";
-import { DFSGetFirstEndPanel, createWorkspacePropsCopy, getAllPageListUnderPanel, getAllSubpanelIDsUnderPanel, getParentPanelID, getTrueProportionList, getSafeRandomID, recalcualteDivisionProportion, shouldPanelDivide } from "./utility";
+import { CloseDefaultPageAlert, CloseLockedPageAlert, MoveLockedPageNewPanelAlert, MoveLockedPageOutPanelAlert, MovePageAlert, PanelSplitAlert } from "../components/modalComponents/alert";
+import { WorkspaceUtility, WorkspaceProps, PanelID, PageData, PageID, WorkspaceConfig, DivisionDirection, PageRenderData } from "../types/workspaceTypes";
+import { createWorkspacePropsCopy, getAllPageListUnderPanel, getAllSubpanelIDsUnderPanel, getParentPanelID, getTrueProportionList, getSafeRandomID, recalcualteDivisionProportion, shouldPanelDivide, getOrderedPanelPageList, getPanelPageListAfterMove, isPageListOrderValid, getMostRecentFocusedPageInPanel, getNewDefaultPageData } from "./utility";
+import { MutablePageData, NewPageData } from "./workspaceExternalInterface";
 
 namespace WorkspaceActionHandler {
-    export function createNewPageInPanel(workspaceProps: WorkspaceProps, panelID: PanelID, newPageData?: PageData, afterPageID?: PageID): WorkspaceProps {
+    export function createNewPageInPanel(workspaceProps: WorkspaceProps, panelID: PanelID, newPageData?: PageData, beforePageID?: PageID): WorkspaceProps {
         const updatedWorkspaceProps = createWorkspacePropsCopy(workspaceProps);
         if (!newPageData) {
             const newPageID = getSafeRandomID(workspaceProps.workspaceID, "page", updatedWorkspaceProps);
-            newPageData = {
-                pageID: newPageID,
-                name: `New Page (${newPageID})`,
-                component: DefaultPage,
-                parentPanelID: panelID,
-                persist: false,
-            };
+            newPageData = getNewDefaultPageData(newPageID, panelID);
         }
         newPageData.parentPanelID = panelID;
 
@@ -26,20 +21,20 @@ namespace WorkspaceActionHandler {
 
         // add new pageID to panel page list
         const newPanelPageList = [...updatedWorkspaceProps.panelPageListReference[panelID]];
-        if (afterPageID) {
-            const insertIndex = newPanelPageList.indexOf(afterPageID) + 1;
+        if (beforePageID) {
+            const insertIndex = newPanelPageList.indexOf(beforePageID);
             newPanelPageList.splice(insertIndex, 0, newPageData.pageID);
         }
         else newPanelPageList.push(newPageData.pageID);
-        updatedWorkspaceProps.panelPageListReference[panelID] = newPanelPageList;
 
-        // set active panel to current panel 
-        if (updatedWorkspaceProps.activePanelID != panelID) updatedWorkspaceProps.activePanelID = panelID;
+        // make the resulting page list respect the ordering rule (locked pages before unlocked pages)
+        const correctedPanelPageList = getOrderedPanelPageList(newPanelPageList, updatedWorkspaceProps.pageDataReference);
+        updatedWorkspaceProps.panelPageListReference[panelID] = correctedPanelPageList;
 
         return updatedWorkspaceProps;
     }
 
-    export function createNewDivision(workspaceProps: WorkspaceProps, initiatePanelID: PanelID, divisionDirection: DivisionDirection, newPanelPosition: "after" | "before", workspaceUtility: WorkspaceUtility, config: WorkspaceConfig, movedPageID?: PageID): WorkspaceProps {
+    export function createNewDivision(workspaceProps: WorkspaceProps, initiatePanelID: PanelID, divisionDirection: DivisionDirection, newPanelPosition: "after" | "before", workspaceUtility: WorkspaceUtility, config: WorkspaceConfig, movedPageID?: PageID, initializeNewPanelWithNewPageData?: NewPageData): [WorkspaceProps, PageID | void] {
         // if movedPage, new Panel is created by dragging a page tab from a panel to the initiatePanel
         // else, new Panel is created by clicking the split button, we need to create a new default page
         // it is garanteed that the initiatePanel is an end panel
@@ -47,6 +42,12 @@ namespace WorkspaceActionHandler {
         // before any operation, we need to calculate if the workspace has enough space to create a new division
         // in case where a page is moved, the original panel may be destroyed, we need to take this into account; it is easier to calculate the new divisionReference after the panel removal before checking if the workspace has enough space
         // it is also possible that the initiatePanel is also destroyed due to the destroyed panel being the only sibling of the initiatePanel; in this case, initiatePanel would become the parent panel of the initiatePanel
+
+        // if new division is created by page move, and the moved page is locked, we do not allow this action
+        if (movedPageID && workspaceProps.pageDataReference[movedPageID].locked) {
+            workspaceUtility.modalInterfaceRef.current!.showModalWithData!({ innerComponent: <MoveLockedPageNewPanelAlert dismissCallback={workspaceUtility.modalInterfaceRef.current!.hideModal!} movedPageData={workspaceProps.pageDataReference[movedPageID]} /> });
+            return [workspaceProps, undefined];
+        }
         let updatedWorkspaceProps = createWorkspacePropsCopy(workspaceProps);
         let isMovedPagePanelDistroyed = false;
         let movedPagePanelID: PanelID | null = null;
@@ -56,10 +57,10 @@ namespace WorkspaceActionHandler {
                 // if the original panel only has one page, it will be destroyed after the page is moved
                 isMovedPagePanelDistroyed = true;
                 // if orgpanel is top panel, don't do anything
-                if (movedPagePanelID == workspaceProps.topPanelID) return workspaceProps;
+                if (movedPagePanelID == workspaceProps.topPanelID) return [workspaceProps, undefined];
 
                 // if orgpanel is also initiatePanel, this action changes nothing (remove the original panel and create a new panel in the same position)
-                if (movedPagePanelID == initiatePanelID) return workspaceProps;
+                if (movedPagePanelID == initiatePanelID) return [workspaceProps, undefined];
 
                 // get updated props after the panel is removed
                 const destroyedPanelParent = getParentPanelID(movedPagePanelID, workspaceProps.panelDivisionReference)!;
@@ -72,7 +73,7 @@ namespace WorkspaceActionHandler {
                         subPanelIDList: newPanelPosition == "after" ? [initiatePanelID, movedPagePanelID] : [movedPagePanelID, initiatePanelID],
                     };
                     updatedWorkspaceProps.panelDivisionReference[destroyedPanelParent] = updatedParentDivision;
-                    return updatedWorkspaceProps;
+                    return [updatedWorkspaceProps, undefined];
                 }
                 updatedWorkspaceProps = destroySubPanel(workspaceProps, config, destroyedPanelParent, movedPagePanelID, "ignore");
                 // after deletion, movedPage's parent panel ID is stale, need to update it
@@ -81,8 +82,8 @@ namespace WorkspaceActionHandler {
         // now we can check if the workspace has enough space after panel deletion
         if (!shouldPanelDivide(initiatePanelID, workspaceProps.topPanelID, divisionDirection, updatedWorkspaceProps.panelDivisionReference, config)) {
             // if not, show modal notification and return
-            workspaceUtility.showModalWithData!({ innerComponent: <PanelSplitAlert dismissCallback={workspaceUtility.hideModal!} divisionDirection={divisionDirection}/> });
-            return workspaceProps;
+            workspaceUtility.modalInterfaceRef.current!.showModalWithData!({ innerComponent: <PanelSplitAlert dismissCallback={workspaceUtility.modalInterfaceRef.current!.hideModal!} divisionDirection={divisionDirection} /> });
+            return [workspaceProps, undefined];
         }
 
         // the new division is possible
@@ -92,16 +93,31 @@ namespace WorkspaceActionHandler {
             // if page is moved, no need to create new page, just need to move the page to the new division
             newPageID = movedPageID;
         } else {
-            // if page is not moved, create new default page
-            newPageID = getSafeRandomID(workspaceProps.workspaceID, "page", updatedWorkspaceProps);
-            const newPageData = {
-                pageID: newPageID,
-                name: `New Tab (${newPageID})`,
-                component: DefaultPage,
-                parentPanelID: "",
-                persist: false,
-            };
-            updatedWorkspaceProps.pageDataReference[newPageID] = newPageData;
+            // if page is not moved, create new page
+            if (initializeNewPanelWithNewPageData) {
+                // create new page with the provided component
+                const passedInPageData = initializeNewPanelWithNewPageData;
+                newPageID = getSafeRandomID(workspaceProps.workspaceID, "page", workspaceProps);
+                const pageData:PageData = {
+                    pageID: newPageID,
+                    name: passedInPageData.name,
+                    icon: passedInPageData.icon,
+                    parentPanelID: "",
+                    persist: passedInPageData.persist,
+                    confirmClose: passedInPageData.confirmClose,
+                    creationTimestamp: Date.now(),
+                    lastFocusedTimestamp: Date.now(),
+                    customContextMenuItems: passedInPageData.customContextMenuItems,
+                    renderData: passedInPageData.renderData
+                }
+                updatedWorkspaceProps.pageDataReference[newPageID] = pageData;
+            }
+            else {
+                // create new default page
+                newPageID = getSafeRandomID(workspaceProps.workspaceID, "page", updatedWorkspaceProps);
+                const newPageData = getNewDefaultPageData(newPageID, "");
+                updatedWorkspaceProps.pageDataReference[newPageID] = newPageData;
+            }
         }
         // note that the parentPanelID of the newPageData is not set (or incorrect in case of movedPage), it will be set after the new division is created
 
@@ -173,9 +189,6 @@ namespace WorkspaceActionHandler {
                 divisionProportionList: [50, 50],
             };
 
-            // set active panel to new division panel
-            updatedWorkspaceProps.activePanelID = newSubPanelID;
-
             // set parentPanelID for newPage
             updatedWorkspaceProps.pageDataReference[newPageID].parentPanelID = newSubPanelID;
 
@@ -215,7 +228,7 @@ namespace WorkspaceActionHandler {
             const updatedParentDivision = {
                 ...updatedWorkspaceProps.panelDivisionReference[parentPanelID],
                 subPanelIDList: [...updatedWorkspaceProps.panelDivisionReference[parentPanelID].subPanelIDList],
-                divisionProportionList: getTrueProportionList(updatedWorkspaceProps.panelDivisionReference[parentPanelID], parentPanelID, config.panelResizeHandleSizeRem),
+                divisionProportionList: getTrueProportionList(updatedWorkspaceProps.panelDivisionReference[parentPanelID], config.panelResizeHandleSizeRem),
             }
             // insert new sub panel into subPanelIDList
             const targetPanelIndex = updatedParentDivision.subPanelIDList.indexOf(initiatePanelID);
@@ -224,35 +237,32 @@ namespace WorkspaceActionHandler {
             updatedParentDivision.divisionProportionList = recalcualteDivisionProportion(updatedParentDivision.divisionProportionList, "insert", targetPanelIndex, newPanelPosition);
             updatedWorkspaceProps.panelDivisionReference[parentPanelID] = updatedParentDivision;
 
-            // set active panel to new division panel
-            updatedWorkspaceProps.activePanelID = newSubPanelID;
-
             // set parentPanelID for newPage
             updatedWorkspaceProps.pageDataReference[newPageID].parentPanelID = newSubPanelID;
         }
-        return updatedWorkspaceProps;
+        return [updatedWorkspaceProps, newPageID];
     }
 
-    export function closePageInPanel(workspaceProps: WorkspaceProps, workspaceUtility: WorkspaceUtility , config: WorkspaceConfig, panelID: PanelID, pageID: PageID): WorkspaceProps {
+    export function closePageInPanel(workspaceProps: WorkspaceProps, workspaceUtility: WorkspaceUtility, config: WorkspaceConfig, panelID: PanelID, pageID: PageID): WorkspaceProps {
+        // if the page is locked, show alert and return
+        if (workspaceProps.pageDataReference[pageID].locked) {
+            workspaceUtility.modalInterfaceRef.current!.showModalWithData!({ innerComponent: <CloseLockedPageAlert dismissCallback={workspaceUtility.modalInterfaceRef.current!.hideModal!} closedPageData={workspaceProps.pageDataReference[pageID]} /> });
+            return workspaceProps;
+        }
         // if page is not the only page in panel, just need to delete the page
         const updatedWorkspaceProps = createWorkspacePropsCopy(workspaceProps);
         if (workspaceProps.panelPageListReference[panelID].length > 1) {
             // delete page data
             delete updatedWorkspaceProps.pageDataReference[pageID];
 
-            // if panel is focused on the closed page, set panel focus to next page; if no next page, set to last page
-            if (updatedWorkspaceProps.panelFocusReference[panelID] == pageID) {
-                const pageIndex = updatedWorkspaceProps.panelPageListReference[panelID].indexOf(pageID);
-                const newFocusIndex = pageIndex == updatedWorkspaceProps.panelPageListReference[panelID].length - 1 ? pageIndex - 1 : pageIndex + 1;
-                updatedWorkspaceProps.panelFocusReference[panelID] = updatedWorkspaceProps.panelPageListReference[panelID][newFocusIndex];
-            }
-
             // remove page from panelpagelist
             const updatedPageList = updatedWorkspaceProps.panelPageListReference[panelID].filter((pID) => pID != pageID);
             updatedWorkspaceProps.panelPageListReference[panelID] = updatedPageList;
 
-            // set active panel to current
-            if (updatedWorkspaceProps.activePanelID != panelID) updatedWorkspaceProps.activePanelID = panelID;
+            // if panel is focused on the closed page, set panel focus to the most recently focused page
+            if (updatedWorkspaceProps.panelFocusReference[panelID] == pageID) {
+                updatedWorkspaceProps.panelFocusReference[panelID] = getMostRecentFocusedPageInPanel(updatedPageList, updatedWorkspaceProps.pageDataReference);
+            }
 
             return updatedWorkspaceProps;
         }
@@ -265,24 +275,54 @@ namespace WorkspaceActionHandler {
         if (parentPanelID) return destroySubPanel(updatedWorkspaceProps, config, parentPanelID!, panelID, "delete");
 
         // if this panel does not have a parent, then this panel is the top panel and this tab is the only tab in workspace, replace this tab with default tab; if already default tab, do nothing
-        if (updatedWorkspaceProps.pageDataReference[pageID].component != DefaultPage) {
+        const closePageData = updatedWorkspaceProps.pageDataReference[pageID];
+        const defaultPage = DefaultPage; // for future default page override
+        if (closePageData.renderData.type == "selfManaged" && closePageData.renderData.componentInstance!.type == defaultPage) {
+            // show alert that the last tab cannot be closed
+            workspaceUtility.modalInterfaceRef.current!.showModalWithData!({ innerComponent: <CloseDefaultPageAlert dismissCallback={workspaceUtility.modalInterfaceRef.current!.hideModal!} /> });
+        } else {
             const newPageID = getSafeRandomID(updatedWorkspaceProps.workspaceID, "page", updatedWorkspaceProps);
-            const newPageData = {
-                pageID: newPageID,
-                name: `New Tab (${newPageID})`,
-                component: DefaultPage,
-                parentPanelID: panelID,
-                persist: false,
-            };
+            const newPageData = getNewDefaultPageData(newPageID, panelID);
             updatedWorkspaceProps.pageDataReference[newPageID] = newPageData;
             updatedWorkspaceProps.panelPageListReference[panelID] = [newPageID];
             updatedWorkspaceProps.panelFocusReference[panelID] = newPageID;
-            updatedWorkspaceProps.activePanelID = panelID;
             delete updatedWorkspaceProps.pageDataReference[pageID];
-        } else {
-            // show alert that the last tab cannot be closed
-            workspaceUtility.showModalWithData!({ innerComponent: <CloseDefaultPageAlert dismissCallback={workspaceUtility.hideModal!}/> });
         }
+        return updatedWorkspaceProps;
+    }
+
+    export function closeOtherPagesInPanel(workspaceProps: WorkspaceProps, panelID: PanelID, initiatePageID: PageID, direction: "left" | "right" | "both"): WorkspaceProps {
+        if (workspaceProps.panelPageListReference[panelID].length == 1) return workspaceProps; // if only one page in panel, do nothing
+
+        const updatedWorkspaceProps = createWorkspacePropsCopy(workspaceProps);
+
+        // update panel page list and delete closed page data
+        const pageList = updatedWorkspaceProps.panelPageListReference[panelID];
+        const updatedPageList = [];
+        let currentSide = "left";
+        for (const pageID of pageList) {
+            if (updatedWorkspaceProps.pageDataReference[pageID].locked) updatedPageList.push(pageID); // if page is locked, keep it
+            else if (pageID == initiatePageID) {
+                updatedPageList.push(pageID);
+                currentSide = "right";
+            }
+            else {
+                if (direction == "both") {
+                    delete updatedWorkspaceProps.pageDataReference[pageID];
+                }
+                else if (direction == currentSide) {
+                    delete updatedWorkspaceProps.pageDataReference[pageID];
+                }
+                else if (direction != currentSide) {
+                    updatedPageList.push(pageID);
+                }
+            }
+        }
+        updatedWorkspaceProps.panelPageListReference[panelID] = updatedPageList;
+
+        // focus on the initiate page
+        updatedWorkspaceProps.panelFocusReference[panelID] = initiatePageID;
+
         return updatedWorkspaceProps;
     }
 
@@ -293,14 +333,11 @@ namespace WorkspaceActionHandler {
         // update panel focus ref
         const updatedPanelFocusReference = { ...workspaceProps.panelFocusReference, [panelID]: pageID };
 
-        // set active panel to current
-        const updatedActivePanelID = panelID;
-
         // return updated props
-        return { ...workspaceProps, panelFocusReference: updatedPanelFocusReference, activePanelID: updatedActivePanelID };
+        return { ...workspaceProps, panelFocusReference: updatedPanelFocusReference };
     }
 
-    export function movePage(workspaceProps: WorkspaceProps, config: WorkspaceConfig, orgPanelID: PanelID, targetPanelID: PanelID, pageID: PageID, targetPositionPageID?: PageID): WorkspaceProps {
+    export function movePage(workspaceProps: WorkspaceProps, workspaceUtility: WorkspaceUtility, config: WorkspaceConfig, orgPanelID: PanelID, targetPanelID: PanelID, pageID: PageID, targetPositionPageID?: PageID, forced?: boolean): WorkspaceProps {
         // similar logic to createNewDivision with movedPage, but without the need to create new division
         // 1. if orgPanel is the targetPanel, just need to update the panel page list
         // 2. destroy the original panel if it is the only page in panel
@@ -314,44 +351,76 @@ namespace WorkspaceActionHandler {
         // if the target page is on the right, pages before and including the target page will be on the left of the moved page (the target page will be shifted to the left)
         // if the target page is on the left, pages after and including the target page will be on the right of the moved page (the target page will be shifted to the right)
 
+        // after page move, the resulting page list should respect the ordering rule (locked pages before unlocked pages)
+        // if the resulting page list violates the ordering rule, show modal and revert changes
+        // set the forced flag to true will allow the move operation and the operation will "try" to move the page to the desired location, but the resulting page list will still be changed to respect the ordering rule (the move page may not be at the target position)
+
         // handle in-panel move
         if (orgPanelID == targetPanelID) {
             // just need to change panelpagelist
-            const updatedPanelPageList = [...workspaceProps.panelPageListReference[orgPanelID]];
-            // first we remove the page from list
-            const movedPageIndex = updatedPanelPageList.indexOf(pageID);
-            const targetPageIndex = targetPositionPageID ? updatedPanelPageList.indexOf(targetPositionPageID) : updatedPanelPageList.length - 1;
-            updatedPanelPageList.splice(movedPageIndex, 1);
-            // then we insert the page to the target position
-            updatedPanelPageList.splice(targetPageIndex, 0, pageID);
+            const updatedPanelPageList = getPanelPageListAfterMove(workspaceProps.panelPageListReference[orgPanelID], pageID, targetPositionPageID);
+
+            // check if the resulting panel page list respect the ordering rule (locked pages before unlocked pages)
+            const isOrderValid = isPageListOrderValid(updatedPanelPageList, workspaceProps.pageDataReference);
+            if (!forced && !isOrderValid) {
+                // if the resulting list violates the ordering rule, show modal and return
+                workspaceUtility.modalInterfaceRef.current!.showModalWithData!({ innerComponent: <MovePageAlert dismissCallback={workspaceUtility.modalInterfaceRef.current!.hideModal!} movedPageData={workspaceProps.pageDataReference[pageID]} /> });
+                return workspaceProps;
+            }
+            // either the move is forced or the resulting list is valid
+            const correctedPanelPageList = getOrderedPanelPageList(updatedPanelPageList, workspaceProps.pageDataReference);
+
             // focus on the moved page
             const updatedPanelFocusReference = { ...workspaceProps.panelFocusReference, [orgPanelID]: pageID };
             // return updated props
-            return { ...workspaceProps, panelPageListReference: { ...workspaceProps.panelPageListReference, [orgPanelID]: updatedPanelPageList }, panelFocusReference: updatedPanelFocusReference };
+            return { ...workspaceProps, panelPageListReference: { ...workspaceProps.panelPageListReference, [orgPanelID]: correctedPanelPageList }, panelFocusReference: updatedPanelFocusReference };
         }
 
         // out-of-panel move
+        // if page is locked, out-of-panel move is not allowed, show modal and return
+        // bypass if forced
+        if (!forced && workspaceProps.pageDataReference[pageID].locked) {
+            workspaceUtility.modalInterfaceRef.current!.showModalWithData!({ innerComponent: <MoveLockedPageOutPanelAlert dismissCallback={workspaceUtility.modalInterfaceRef.current!.hideModal!} movedPageData={workspaceProps.pageDataReference[pageID]} /> });
+            return workspaceProps;
+        }
         // get copy of workspaceProps
         const updatedWorkspaceProps = createWorkspacePropsCopy(workspaceProps);
 
         // if the original panel only has one page, it will be destroyed after the page is moved
         if (workspaceProps.panelPageListReference[orgPanelID].length == 1) {
             const destroyedPanelParent = getParentPanelID(orgPanelID, workspaceProps.panelDivisionReference)!; // it is garanteed that orgPanel is not top Panel, therefore its parent panel exists
-            return destroySubPanel(workspaceProps, config, destroyedPanelParent, orgPanelID, "move", targetPanelID); // destroySubPanel will handle the page move
+            const updatedWorkspaceProps = destroySubPanel(workspaceProps, config, destroyedPanelParent, orgPanelID, "move", targetPanelID);
+            // after panel destruction, moved Page's position may not be correct, need to update it
+            // moved page will be the last page in the target panel
+            // target Panel may also be destroyed, we update targetPanelID
+            targetPanelID = updatedWorkspaceProps.pageDataReference[pageID].parentPanelID;
+            // now, this is an in-panel move
+            const updatedWorkspacePropsAfterPositionFix = movePage(updatedWorkspaceProps, workspaceUtility, config, targetPanelID, targetPanelID, pageID, targetPositionPageID, forced);
+
+            // if updatedWorkspacePropsAfterPositionFix is the same as updatedWorkspaceProps, it means the move is invalid due to violation of ordering rule
+            // if forced, the workspace props will be updated
+            if (updatedWorkspacePropsAfterPositionFix == updatedWorkspaceProps) {
+                // show modal and return
+                workspaceUtility.modalInterfaceRef.current!.showModalWithData!({ innerComponent: <MovePageAlert dismissCallback={workspaceUtility.modalInterfaceRef.current!.hideModal!} movedPageData={workspaceProps.pageDataReference[pageID]} /> });
+                return workspaceProps;
+            }
+
+
+            return updatedWorkspacePropsAfterPositionFix;
         }
 
         // if the original panel has more than one page, just need to move the page
         // detach the page from the original panel
-        // if orgpanel is focused on the moved page, set orgpanel to focus on the next page; if no next page, set to last page
-        const orgPanelPageList = [...updatedWorkspaceProps.panelPageListReference[orgPanelID]];
-        const movedPageIndex = orgPanelPageList.indexOf(pageID);
-        if (updatedWorkspaceProps.panelFocusReference[orgPanelID] == pageID) {
-            const newFocusIndex = movedPageIndex == orgPanelPageList.length - 1 ? movedPageIndex - 1 : movedPageIndex + 1;
-            updatedWorkspaceProps.panelFocusReference[orgPanelID] = orgPanelPageList[newFocusIndex];
-        }
         // update original panel page list 
-        orgPanelPageList.splice(movedPageIndex, 1);
-        updatedWorkspaceProps.panelPageListReference[orgPanelID] = orgPanelPageList;
+        const updatedPageList = updatedWorkspaceProps.panelPageListReference[orgPanelID].filter((pID) => pID != pageID);
+        updatedWorkspaceProps.panelPageListReference[orgPanelID] = updatedPageList;
+
+        // if orgpanel is focused on the moved page, set orgpanel to focus on the most recently focused page
+
+        if (updatedWorkspaceProps.panelFocusReference[orgPanelID] == pageID) {
+            updatedWorkspaceProps.panelFocusReference[orgPanelID] = getMostRecentFocusedPageInPanel(updatedPageList, updatedWorkspaceProps.pageDataReference);
+        }
+
 
         // attach the page to the target panel
         // set parentpanelID for the moved page
@@ -360,12 +429,20 @@ namespace WorkspaceActionHandler {
         updatedWorkspaceProps.panelFocusReference[targetPanelID] = pageID;
         // update target panel page list
         const targetPanelPageList = [...updatedWorkspaceProps.panelPageListReference[targetPanelID]];
-        const targetPageIndex = targetPositionPageID ? targetPanelPageList.indexOf(targetPositionPageID) : targetPanelPageList.length - 1;
+        const targetPageIndex = targetPositionPageID ? targetPanelPageList.indexOf(targetPositionPageID) : targetPanelPageList.length;
         targetPanelPageList.splice(targetPageIndex, 0, pageID);
         updatedWorkspaceProps.panelPageListReference[targetPanelID] = targetPanelPageList;
 
-        // set active panel to target panel
-        updatedWorkspaceProps.activePanelID = targetPanelID;
+        // check if the move violates the ordering rule (locked pages before unlocked pages)
+        const isOrderValid = isPageListOrderValid(targetPanelPageList, updatedWorkspaceProps.pageDataReference);
+        if (!forced && !isOrderValid) {
+            // if the resulting list violates the ordering rule, show modal and return
+            workspaceUtility.modalInterfaceRef.current!.showModalWithData!({ innerComponent: <MovePageAlert dismissCallback={workspaceUtility.modalInterfaceRef.current!.hideModal!} movedPageData={workspaceProps.pageDataReference[pageID]} /> });
+            return workspaceProps;
+        }
+        // either the move is forced or the resulting list is valid
+        const correctedPanelPageList = getOrderedPanelPageList(targetPanelPageList, updatedWorkspaceProps.pageDataReference);
+        updatedWorkspaceProps.panelPageListReference[targetPanelID] = correctedPanelPageList;
 
         // return updated props
         return updatedWorkspaceProps;
@@ -406,12 +483,10 @@ namespace WorkspaceActionHandler {
                 updatedPageDataReference[pageID] = { ...updatedPageDataReference[pageID], parentPanelID: pageMoveTargetPanelID! };
             }
 
-            // update pageList for pageMoveTargetPanel, add moved pages to the end
+            // update pageList for pageMoveTargetPanel, add moved pages to the end, then fix the page order (locked pages before unlocked pages)
             const newParentPageList = [...updatedPanelPageListReference[pageMoveTargetPanelID!], ...childrenPanelPageList];
-            updatedPanelPageListReference[pageMoveTargetPanelID!] = newParentPageList;
-
-            // focus on the last moved page
-            updatedPanelFocusReference[pageMoveTargetPanelID!] = childrenPanelPageList[childrenPanelPageList.length - 1];
+            const orderedNewParentPageList = getOrderedPanelPageList(newParentPageList, updatedPageDataReference);
+            updatedPanelPageListReference[pageMoveTargetPanelID!] = orderedNewParentPageList;
         }
 
         // if subpanel is not an end panel, need to delete all panels under subpanel
@@ -434,9 +509,6 @@ namespace WorkspaceActionHandler {
             delete updatedPanelPositionReference[panelID];
         }
 
-        // if any of the destroyed subpanel is the current active panel, need to recalculate active panel
-        let updatedActivePanelID = (workspaceProps.activePanelID == subpanelID) || (childrenPanelIDList.includes(workspaceProps.activePanelID)) ? DFSGetFirstEndPanel(parentPanelDivision, updatedPanelDivisionReference, subpanelID)! : workspaceProps.activePanelID;
-
         if (parentPanelDivision.subPanelIDList.length > 2) {
             // parent panel has more than 2 sub-panels, only need to delete the subpanel
             // update parent panel division
@@ -445,7 +517,7 @@ namespace WorkspaceActionHandler {
             const updatedsubPanelIDList = [...updatedPanelDivisionReference[parentPanelID].subPanelIDList];
             updatedsubPanelIDList.splice(subpanelIndex, 1);
             // recalculate new proportions
-            let updatedDivisionProportionList = getTrueProportionList(updatedPanelDivisionReference[parentPanelID], parentPanelID, config.panelResizeHandleSizeRem);
+            let updatedDivisionProportionList = getTrueProportionList(updatedPanelDivisionReference[parentPanelID], config.panelResizeHandleSizeRem);
             updatedDivisionProportionList = recalcualteDivisionProportion(updatedDivisionProportionList, "delete", subpanelIndex);
             updatedPanelDivisionReference[parentPanelID] = {
                 ...updatedPanelDivisionReference[parentPanelID],
@@ -461,7 +533,6 @@ namespace WorkspaceActionHandler {
                 panelFocusReference: updatedPanelFocusReference,
                 pageDataReference: updatedPageDataReference,
                 panelPositionReference: updatedPanelPositionReference,
-                activePanelID: updatedActivePanelID
             } as WorkspaceProps;
         }
         else if (parentPanelDivision.subPanelIDList.length == 2) {
@@ -471,6 +542,7 @@ namespace WorkspaceActionHandler {
             const siblingPanelID = parentPanelDivision.subPanelIDList[0] == subpanelID ? parentPanelDivision.subPanelIDList[1] : parentPanelDivision.subPanelIDList[0];
             const updatedParentDivision = {
                 ...updatedPanelDivisionReference[siblingPanelID],
+                panelID: parentPanelID,
             }
             updatedPanelDivisionReference[parentPanelID] = updatedParentDivision;
             // delete division for subpanel and sibling panel
@@ -493,8 +565,6 @@ namespace WorkspaceActionHandler {
             // delete focus for sibling panel
             delete updatedPanelFocusReference[siblingPanelID];
 
-            // if updated active panel is the sibling panel (which is destroyed) or the updatedActivePanel from above is the sibling panel (sibling panel is an end panel), set active panel to the parent panel
-            if (workspaceProps.activePanelID == siblingPanelID || updatedActivePanelID == siblingPanelID) updatedActivePanelID = parentPanelID;
 
             // construct new workspace prop and return
             return {
@@ -504,7 +574,6 @@ namespace WorkspaceActionHandler {
                 panelFocusReference: updatedPanelFocusReference,
                 pageDataReference: updatedPageDataReference,
                 panelPositionReference: updatedPanelPositionReference,
-                activePanelID: updatedActivePanelID
             } as WorkspaceProps;
         }
         else {
@@ -538,6 +607,40 @@ namespace WorkspaceActionHandler {
         } as WorkspaceProps;
     }
 
+    export function togglePageLock(workspaceProps: WorkspaceProps, pageID: PageID): WorkspaceProps {
+        const updatedPageDataReference = { ...workspaceProps.pageDataReference };
+        const updatedPanelPageListReference = { ...workspaceProps.panelPageListReference };
+
+        const newLockState = updatedPageDataReference[pageID].locked ? false : true;
+        // toggle the lock status of the page
+        updatedPageDataReference[pageID] = {
+            ...updatedPageDataReference[pageID],
+            locked: newLockState
+        }
+
+        // get the correct page order after the lock state is changed
+        const panelID = updatedPageDataReference[pageID].parentPanelID;
+        const pageList = updatedPanelPageListReference[panelID];
+        const updatedPanelPageList = getOrderedPanelPageList(pageList, updatedPageDataReference);
+        updatedPanelPageListReference[panelID] = updatedPanelPageList;
+
+        // focus on the page
+        const updatedPanelFocusReference = { ...workspaceProps.panelFocusReference, [panelID]: pageID };
+
+        return {
+            ...workspaceProps,
+            pageDataReference: updatedPageDataReference,
+            panelPageListReference: updatedPanelPageListReference,
+            panelFocusReference: updatedPanelFocusReference
+        } as WorkspaceProps;
+    }
+
+    export function updatePageData(workspaceProps: WorkspaceProps, pageID: PageID, updatedPageData: MutablePageData): WorkspaceProps {
+        const updatedPageDataReference = { ...workspaceProps.pageDataReference };
+        updatedPageDataReference[pageID] = { ...updatedPageDataReference[pageID], ...updatedPageData };
+        return { ...workspaceProps, pageDataReference: updatedPageDataReference };
+    }
+
     export function dispatchWorkspacePropsUpdate(orgWorkspaceProps: WorkspaceProps, updatedWorkspaceProps: WorkspaceProps, workspaceUtility: WorkspaceUtility, resizeObserver: ResizeObserver): void {
         // ResizeObserver refresh:
         // when panelDivision changes, some panels may be destroyed; PanelPageContainer cannot tell the resize observe to unoberse before the panel is destroyed; thus, we need to handle unobserving the destroyed panel here, before new states are dispatched
@@ -555,12 +658,23 @@ namespace WorkspaceActionHandler {
         }
 
         // Update workspace props if changed
+        if (orgWorkspaceProps.panelFocusReference != updatedWorkspaceProps.panelFocusReference) {
+            workspaceUtility.setPanelFocusReference(updatedWorkspaceProps.panelFocusReference);
+            // if panel focus is changed, need to update the last focsued timestamp for the page
+            const updatedPageDataReference = { ...updatedWorkspaceProps.pageDataReference };
+            for (const panelID in updatedWorkspaceProps.panelFocusReference) {
+                // if a panel is new or the panel is old but the focus is changed, update the lastFocusedTimestamp for the focused page
+                if (!(panelID in orgWorkspaceProps.panelFocusReference) || (panelID in orgWorkspaceProps.panelFocusReference && orgWorkspaceProps.panelFocusReference[panelID] != updatedWorkspaceProps.panelFocusReference[panelID])) {
+                    const newFocusPageID = updatedWorkspaceProps.panelFocusReference[panelID];
+                    updatedPageDataReference[newFocusPageID] = { ...updatedPageDataReference[newFocusPageID], lastFocusedTimestamp: Date.now() };
+                }
+            }
+            updatedWorkspaceProps.pageDataReference = updatedPageDataReference;
+        }
         if (orgWorkspaceProps.pageDataReference != updatedWorkspaceProps.pageDataReference) workspaceUtility.setPageDataReference(updatedWorkspaceProps.pageDataReference);
-        if (orgWorkspaceProps.panelFocusReference != updatedWorkspaceProps.panelFocusReference) workspaceUtility.setPanelFocusReference(updatedWorkspaceProps.panelFocusReference);
         if (orgWorkspaceProps.panelDivisionReference != updatedWorkspaceProps.panelDivisionReference) workspaceUtility.setPanelDivisionReference(updatedWorkspaceProps.panelDivisionReference);
         if (orgWorkspaceProps.panelPageListReference != updatedWorkspaceProps.panelPageListReference) workspaceUtility.setPanelPageListReference(updatedWorkspaceProps.panelPageListReference);
         if (orgWorkspaceProps.panelPositionReference != updatedWorkspaceProps.panelPositionReference) workspaceUtility.setPanelPositionReference(updatedWorkspaceProps.panelPositionReference);
-        if (orgWorkspaceProps.activePanelID != updatedWorkspaceProps.activePanelID) workspaceUtility.setActivePanelID(updatedWorkspaceProps.activePanelID);
     }
 }
 export default WorkspaceActionHandler;

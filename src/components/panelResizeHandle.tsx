@@ -58,7 +58,7 @@ export function PanelResizeHandle({ panelID, handleIndex, panelRef}: { panelID: 
         afterDeltaMax.current = 100 * (afterPanelCurrentDim <= afterPanelMinDim ? 0 : (afterPanelCurrentDim - afterPanelMinDim) / correctedPanelTotalDim.current);
 
         resizeStartClientXY.current = divisionDirection == "horizontal" ? event.clientX! : event.clientY!;
-        resizeStartProportionList.current = getTrueProportionList(workspaceProps!.panelDivisionReference[panelID], panelID, workspaceConfig!.panelResizeHandleSizeRem);
+        resizeStartProportionList.current = getTrueProportionList(workspaceProps!.panelDivisionReference[panelID], workspaceConfig!.panelResizeHandleSizeRem);
         document.addEventListener("mousemove", mousemoveHandler);
         document.addEventListener("mouseup", mouseupHandler);
         document.documentElement.style.cursor = divisionDirection == "horizontal" ? "col-resize" : "row-resize";

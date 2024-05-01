@@ -10,7 +10,7 @@ export const Modal = forwardRef<ModalInterface, {}>((_props, ref) => {
 
     function showModalWithData(modalData: ModalData) {
         if (hideModalCallbackTimeoutRef.current) clearTimeout(hideModalCallbackTimeoutRef.current);
-        if (modalState!="show") setModalState("show");
+        setModalState("show");
         setModalData(modalData);
         setModalDataTimestamp(Date.now());
     }

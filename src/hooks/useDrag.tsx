@@ -1,4 +1,4 @@
-import { getMousePositionDelta, getRemPxSize, isMouseInElement } from "../functions/utility";
+import { getMousePositionDelta, getRemPxSize, isPositionInElement } from "../functions/utility";
 import { DragConfig } from "../types/workspaceTypes";
 import { useRef } from "react";
 
@@ -9,7 +9,7 @@ export function useDrag(elementRef: React.RefObject<HTMLElement>, dragConfig:Dra
         const remPxSize = getRemPxSize(document);
         const positionDeltaPx = getMousePositionDelta(originalPosition.current, {x: e.clientX, y: e.clientY});
         const positionDeltaRem = positionDeltaPx / remPxSize;
-        if (positionDeltaRem >= dragConfig.dragActivationThresholdRem && isMouseInElement(e, elementRef.current!.getBoundingClientRect())) {
+        if (positionDeltaRem >= dragConfig.dragActivationThresholdRem && isPositionInElement(e, elementRef.current!.getBoundingClientRect())) {
             dragStartCallback(e);
             window.removeEventListener("mousemove", detectDrag);
             window.removeEventListener("mouseup", defaultMouseUp);

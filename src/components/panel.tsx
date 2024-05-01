@@ -1,6 +1,6 @@
 import { useContext, useRef } from "react";
 import { PanelID } from "../types/workspaceTypes";
-import { WorkspaceUtilityContext, WorkspacePropsContext, WorkspaceConfigContext } from "../WorkspaceContainer";
+import { WorkspacePropsContext, WorkspaceConfigContext } from "../WorkspaceContainer";
 import { PanelTopBar } from "./panelTopBar";
 import { PanelPageContainer } from "./panelPageContainer";
 import { PanelResizeHandle } from "./panelResizeHandle";
@@ -12,7 +12,6 @@ interface PanelProps {
 }
 
 export function Panel({ panelID, dimensionProportion }: PanelProps) {
-    const workspaceUtility = useContext(WorkspaceUtilityContext);
     const workspaceProps = useContext(WorkspacePropsContext);
     const workspaceConfig = useContext(WorkspaceConfigContext);
 
@@ -24,7 +23,7 @@ export function Panel({ panelID, dimensionProportion }: PanelProps) {
         // no sub panels, this is an end panel
         // render PanelTabBar and PanelPageSpace
         return (
-            <div ref={selfRef} id={panelID} className="flex flex-col relative bg-background" style={{ ...panelFlex, minHeight: `${workspaceConfig!.panelMinimumDimensionRem.height}rem`, minWidth: `${workspaceConfig!.panelMinimumDimensionRem.width}rem` }} onClick={()=>{workspaceUtility!.setActivePanelID(panelID);}}>
+            <div ref={selfRef} id={panelID} className="flex flex-col relative bg-background" style={{ ...panelFlex, minHeight: `${workspaceConfig!.panelMinimumDimensionRem.height}rem`, minWidth: `${workspaceConfig!.panelMinimumDimensionRem.width}rem` }}>
                 <PanelTopBar panelID={panelID} />
                 <PanelPageContainer panelID={panelID} />
             </div>

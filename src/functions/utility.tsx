@@ -1,22 +1,25 @@
 import { RefObject } from "react";
-import { DivisionDirection, ElementRect, PageData, PageID, PanelDivision, PanelDivisionReference, PanelID, PanelPageListReference, WorkspaceAction, WorkspaceConfig, WorkspaceID, WorkspaceProps, WorkspaceUtility } from "../types/workspaceTypes";
+import { ContextData, DivisionDirection, DraggedData, ElementRect, PageData, PageDataReference, PageID, PageRenderData, PanelDivision, PanelDivisionReference, PanelID, PanelPageListReference, WorkspaceAction, WorkspaceConfig, WorkspaceID, WorkspaceProps, WorkspaceUtility } from "../types/workspaceTypes";
 import WorkspaceActionHandler from "./workspaceActionHandler";
+import { PANEL_PAGE_TAB_CONTEXT_MENU_ITEMS } from "../components/contextMenus/panelPageTabContextMenu";
+import DefaultPage from "../components/defaultPage";
+import { NewPageData } from "./workspaceExternalInterface";
 
 export function getRemPxSize(document: Document) {
     return parseFloat(getComputedStyle(document.documentElement).fontSize);
 }
 
 export function getRandomID(workspaceID: WorkspaceID, type: "panel" | "page") {
-    return workspaceID + "-" + type + "-" + Math.random().toString(36).substring(2,10);
+    return workspaceID + "-" + type + "-" + Math.random().toString(36).substring(2, 10);
 }
 
-export function getSafeRandomID(workspaceID: WorkspaceID, type: "panel" | "page", workspaceProps:WorkspaceProps) {
+export function getSafeRandomID(workspaceID: WorkspaceID, type: "panel" | "page", workspaceProps: WorkspaceProps) {
     let randomID = getRandomID(workspaceID, type);
     if (type == "panel") {
         while (randomID in workspaceProps.panelDivisionReference) {
             randomID = getRandomID(workspaceID, type);
         }
-    } 
+    }
     else if (type == "page") {
         while (randomID in workspaceProps.pageDataReference) {
             randomID = getRandomID(workspaceID, type);
@@ -93,10 +96,10 @@ export function getLineageMaxSubPanelCount(panelID: PanelID, panelLineageList: P
     return Math.max(...childrenSubCountList);
 }
 
-export function getTrueProportionList(orgDivisionState: PanelDivision, panelID: PanelID, panelResizeHandleSizeRem: number) {
+export function getTrueProportionList(orgDivisionState: PanelDivision, panelResizeHandleSizeRem: number) {
     // get the true (as seen) proportion list of a division panel
     // the proportion list may not be accurate due to panel size minimum constraints
-    const panelDOMElement = document.getElementById(panelID);
+    const panelDOMElement = document.getElementById(orgDivisionState.panelID);
     const parentTotalDim = orgDivisionState.divisionDirection == "horizontal" ? panelDOMElement!.getBoundingClientRect().width : panelDOMElement!.getBoundingClientRect().height;
     const correctedTotalDim = parentTotalDim - (orgDivisionState.subPanelIDList.length - 1) * panelResizeHandleSizeRem * getRemPxSize(document);
 
@@ -174,16 +177,16 @@ export function recalcualteDivisionProportion(orgDivisionProportion: number[], a
     return orgDivisionProportion; // this should never be reached
 }
 
-export function getAllPageListUnderPanel(panelID: PanelID, panelPageListReference: PanelPageListReference, panelDivisionReference:PanelDivisionReference): PageID[] {
+export function getAllPageListUnderPanel(panelID: PanelID, panelPageListReference: PanelPageListReference, panelDivisionReference: PanelDivisionReference): PageID[] {
     // recursively get all page IDs under a panel
-    if (panelDivisionReference[panelID].subPanelIDList.length==0){
+    if (panelDivisionReference[panelID].subPanelIDList.length == 0) {
         // current panel is endpanel
         return panelPageListReference[panelID];
     }
-    else if (panelDivisionReference[panelID].subPanelIDList.length>0){
+    else if (panelDivisionReference[panelID].subPanelIDList.length > 0) {
         // current panel is a division panel
-        let pageList:PageID[] = [];
-        for (let subPanelID of panelDivisionReference[panelID].subPanelIDList){
+        let pageList: PageID[] = [];
+        for (let subPanelID of panelDivisionReference[panelID].subPanelIDList) {
             pageList = pageList.concat(getAllPageListUnderPanel(subPanelID, panelPageListReference, panelDivisionReference));
         }
         return pageList;
@@ -191,16 +194,16 @@ export function getAllPageListUnderPanel(panelID: PanelID, panelPageListReferenc
     return []; // Add a default return statement
 }
 
-export function getAllSubpanelIDsUnderPanel(panelID: PanelID, panelDivisionReference:PanelDivisionReference): PanelID[] {
+export function getAllSubpanelIDsUnderPanel(panelID: PanelID, panelDivisionReference: PanelDivisionReference): PanelID[] {
     // recursively get all subpanel IDs under a panel
-    if (panelDivisionReference[panelID].subPanelIDList.length==0){
+    if (panelDivisionReference[panelID].subPanelIDList.length == 0) {
         // current panel is endpanel
         return [];
     }
-    else if (panelDivisionReference[panelID].subPanelIDList.length>0){
+    else if (panelDivisionReference[panelID].subPanelIDList.length > 0) {
         // current panel is a division panel
-        let subPanelList:PanelID[] = [];
-        for (let subPanelID of panelDivisionReference[panelID].subPanelIDList){
+        let subPanelList: PanelID[] = [];
+        for (let subPanelID of panelDivisionReference[panelID].subPanelIDList) {
             subPanelList.push(subPanelID);
             subPanelList = subPanelList.concat(getAllSubpanelIDsUnderPanel(subPanelID, panelDivisionReference));
         }
@@ -209,31 +212,31 @@ export function getAllSubpanelIDsUnderPanel(panelID: PanelID, panelDivisionRefer
     return []; // Add a default return statement
 }
 
-export function getParentPanelID(panelID:PanelID, panelDivisionReference:PanelDivisionReference){
+export function getParentPanelID(panelID: PanelID, panelDivisionReference: PanelDivisionReference) {
     // return the parent panel ID of a given panel, if the panel has no parent (top panel), return undefined
-    for (let parentPanelID in panelDivisionReference){
+    for (let parentPanelID in panelDivisionReference) {
         if (panelDivisionReference[parentPanelID].subPanelIDList.includes(panelID)) return parentPanelID;
     }
 }
 
-export function createWorkspacePropsCopy(workspaceProps:WorkspaceProps){
+export function createWorkspacePropsCopy(workspaceProps: WorkspaceProps) {
     // create a copy of the workspace props
     return {
         ...workspaceProps,
-        pageDataReference: {...workspaceProps.pageDataReference},
-        panelPositionReference: {...workspaceProps.panelPositionReference},
-        panelFocusReference: {...workspaceProps.panelFocusReference},
-        panelDivisionReference: {...workspaceProps.panelDivisionReference},
-        panelPageListReference: {...workspaceProps.panelPageListReference},
+        pageDataReference: { ...workspaceProps.pageDataReference },
+        panelPositionReference: { ...workspaceProps.panelPositionReference },
+        panelFocusReference: { ...workspaceProps.panelFocusReference },
+        panelDivisionReference: { ...workspaceProps.panelDivisionReference },
+        panelPageListReference: { ...workspaceProps.panelPageListReference },
     } as WorkspaceProps
 }
 
-export function triggerMouseMoveOnWindow(position: {x: number, y: number}) {
+export function triggerMouseMoveOnWindow(position: { x: number, y: number }) {
     // trigger the mousemove event on the window object at the specified position
-    window.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, cancelable: true, clientX: position.x, clientY: position.y}));
+    window.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, cancelable: true, clientX: position.x, clientY: position.y }));
 }
 
-export function isMouseInElement(e: MouseEvent, elementRect: ElementRect) {
+export function isPositionInElement(e: { x: number, y: number }, elementRect: ElementRect) {
     // check if the mouse event is within the element bounding box
     if (elementRect.x > e.x ||
         e.x > (elementRect.x + elementRect.width) ||
@@ -242,42 +245,55 @@ export function isMouseInElement(e: MouseEvent, elementRect: ElementRect) {
     return true;
 }
 
-export function getMousePositionDelta(position: {x: number, y: number}, startPosition: {x: number, y: number}) {
+export function getMousePositionDelta(position: { x: number, y: number }, startPosition: { x: number, y: number }) {
     // get the euclidean distance between the two points
     const xDelta = position.x - startPosition.x;
     const yDelta = position.y - startPosition.y;
     // distance is the square root of the sum of the squares of the two deltas
-    return Math.sqrt(xDelta**2 + yDelta**2);
+    return Math.sqrt(xDelta ** 2 + yDelta ** 2);
 }
 
-export function getWorkspaceActionFromHandler(workspaceProps:WorkspaceProps, workspaceUtility: WorkspaceUtility, workspaceConfig: WorkspaceConfig, resizeObserver: ResizeObserver){
+export function getWorkspaceActionFromHandler(workspaceProps: WorkspaceProps, workspaceUtility: WorkspaceUtility, workspaceConfig: WorkspaceConfig, resizeObserver: ResizeObserver) {
     return {
-        createNewPageInPanel: (panelID: PanelID, newPageData?: PageData, afterPageID?: PageID) => {
-            const updatedWorkspaceProps = WorkspaceActionHandler.createNewPageInPanel(workspaceProps, panelID, newPageData, afterPageID);
+        createNewPageInPanel: (panelID: PanelID, newPageData?: PageData, beforePageID?: PageID) => {
+            const updatedWorkspaceProps = WorkspaceActionHandler.createNewPageInPanel(workspaceProps, panelID, newPageData, beforePageID);
             WorkspaceActionHandler.dispatchWorkspacePropsUpdate(workspaceProps, updatedWorkspaceProps, workspaceUtility, resizeObserver);
         },
-        createNewDivision: (initiatePanelID: string, divisionDirection: DivisionDirection, newPanelPosition: "after" | "before", movedPageID?: string | undefined) => {
-            const updatedWorkspaceProps = WorkspaceActionHandler.createNewDivision(workspaceProps, initiatePanelID, divisionDirection, newPanelPosition, workspaceUtility, workspaceConfig, movedPageID);
+        createNewDivision: (initiatePanelID: PanelID, divisionDirection: DivisionDirection, newPanelPosition: "after" | "before", movedPageID?: PageID, initializeNewPanelWithNewPageData?: NewPageData) => {
+            const [updatedWorkspaceProps, newPageID] = WorkspaceActionHandler.createNewDivision(workspaceProps, initiatePanelID, divisionDirection, newPanelPosition, workspaceUtility, workspaceConfig, movedPageID, initializeNewPanelWithNewPageData);
             WorkspaceActionHandler.dispatchWorkspacePropsUpdate(workspaceProps, updatedWorkspaceProps, workspaceUtility, resizeObserver);
-        }, 
+            return newPageID
+        },
         closePageInPanel: (panelID: PanelID, pageID: PageID) => {
             const updatedWorkspaceProps = WorkspaceActionHandler.closePageInPanel(workspaceProps, workspaceUtility, workspaceConfig, panelID, pageID);
+            WorkspaceActionHandler.dispatchWorkspacePropsUpdate(workspaceProps, updatedWorkspaceProps, workspaceUtility, resizeObserver);
+        },
+        closeOtherPagesInPanel: (panelID: PanelID, initiatePageID: PageID, direction: "left" | "right" | "both") => {
+            const updatedWorkspaceProps = WorkspaceActionHandler.closeOtherPagesInPanel(workspaceProps, panelID, initiatePageID, direction);
             WorkspaceActionHandler.dispatchWorkspacePropsUpdate(workspaceProps, updatedWorkspaceProps, workspaceUtility, resizeObserver);
         },
         focusPageInPanel: (panelID: PanelID, pageID: PageID) => {
             const updatedWorkspaceProps = WorkspaceActionHandler.focusPageInPanel(workspaceProps, panelID, pageID);
             WorkspaceActionHandler.dispatchWorkspacePropsUpdate(workspaceProps, updatedWorkspaceProps, workspaceUtility, resizeObserver);
         },
-        movePage: (orgPanelID: PanelID, targetPanelID: PanelID, pageID: PageID, targetPositionPageID?: PageID) => {
-            const updatedWorkspaceProps = WorkspaceActionHandler.movePage(workspaceProps,workspaceConfig, orgPanelID, targetPanelID, pageID, targetPositionPageID);
+        movePage: (orgPanelID: PanelID, targetPanelID: PanelID, pageID: PageID, targetPositionPageID?: PageID, forced?: boolean) => {
+            const updatedWorkspaceProps = WorkspaceActionHandler.movePage(workspaceProps, workspaceUtility, workspaceConfig, orgPanelID, targetPanelID, pageID, targetPositionPageID, forced);
             WorkspaceActionHandler.dispatchWorkspacePropsUpdate(workspaceProps, updatedWorkspaceProps, workspaceUtility, resizeObserver);
         },
         destroySubPanel: (parentPanelID: PanelID, subpanelID: PanelID, panelPageAction: "delete" | "move" | "ignore", pageMoveTargetPanelID?: PanelID) => {
-            const updatedWorkspaceProps = WorkspaceActionHandler.destroySubPanel(workspaceProps,workspaceConfig, parentPanelID, subpanelID, panelPageAction, pageMoveTargetPanelID);
+            const updatedWorkspaceProps = WorkspaceActionHandler.destroySubPanel(workspaceProps, workspaceConfig, parentPanelID, subpanelID, panelPageAction, pageMoveTargetPanelID);
             WorkspaceActionHandler.dispatchWorkspacePropsUpdate(workspaceProps, updatedWorkspaceProps, workspaceUtility, resizeObserver);
         },
         resizePanelDivision: (panelID: PanelID, handleIndex: number, resizeStartProportionList: number[], percentageDelta: number, deltaRange: number[]) => {
             const updatedWorkspaceProps = WorkspaceActionHandler.resizePanelDivision(workspaceProps, panelID, handleIndex, resizeStartProportionList, percentageDelta, deltaRange);
+            WorkspaceActionHandler.dispatchWorkspacePropsUpdate(workspaceProps, updatedWorkspaceProps, workspaceUtility, resizeObserver);
+        },
+        togglePageLock: (pageID: PageID) => {
+            const updatedWorkspaceProps = WorkspaceActionHandler.togglePageLock(workspaceProps, pageID);
+            WorkspaceActionHandler.dispatchWorkspacePropsUpdate(workspaceProps, updatedWorkspaceProps, workspaceUtility, resizeObserver);
+        },
+        updatePageData: (pageID: PageID, updatedPageData: Partial<PageData>) => {
+            const updatedWorkspaceProps = WorkspaceActionHandler.updatePageData(workspaceProps, pageID, updatedPageData);
             WorkspaceActionHandler.dispatchWorkspacePropsUpdate(workspaceProps, updatedWorkspaceProps, workspaceUtility, resizeObserver);
         }
 
@@ -296,13 +312,122 @@ export function getPanelPageContainerRenderedPosition(pageContainerHTMLElement: 
     };
 }
 
-export function getPositionRelativeClearance(position: {x: number, y: number}, rootElementRect: ElementRect) {
-    // get clearance from top, right, bottom, left of the root element in rem
-    const documentRemSize = getRemPxSize(document);
+export function getPositionRelativeClearance(position: { x: number, y: number }, rootElementRect: ElementRect) {
+    // get clearance from top, right, bottom, left of the root element
     return {
-        top: (position.y - rootElementRect.y) / documentRemSize,
-        right: (rootElementRect.x + rootElementRect.width - position.x) / documentRemSize,
-        bottom: (rootElementRect.y + rootElementRect.height - position.y) / documentRemSize,
-        left: (position.x - rootElementRect.x) / documentRemSize
+        top: (position.y - rootElementRect.y),
+        right: (rootElementRect.x + rootElementRect.width - position.x),
+        bottom: (rootElementRect.y + rootElementRect.height - position.y),
+        left: (position.x - rootElementRect.x)
     }
+}
+
+export function getContextMenuHeightRem(contextData: ContextData, workspaceProps: WorkspaceProps, workspaceConfig: WorkspaceConfig) {
+    // get the height of the context menu based on the context data
+    if (contextData.type == "panelPageTab") {
+        let heightRem = 0;
+        // default context menu height
+        let groupCount = 0, itemCount = 0;
+        for (const group of PANEL_PAGE_TAB_CONTEXT_MENU_ITEMS) {
+            groupCount += 1;
+            itemCount += group.length;
+        }
+        heightRem += itemCount * workspaceConfig.contextMenuConfig.panelPageTab.itemHeightRem + (groupCount - 1) * 0.0625;
+        if (workspaceProps.pageDataReference[contextData.pageID].customContextMenuItems) {
+            heightRem += 0.0625 + workspaceProps.pageDataReference[contextData.pageID].customContextMenuItems!.length * workspaceConfig.contextMenuConfig.panelPageTab.itemHeightRem;
+        }
+        return heightRem;
+    }
+    return 0;
+}
+
+export function getOrderedPanelPageList(panelPageList: PageID[], pageDataReference: PageDataReference): PageID[] {
+    // get the correctly ordered page list based on locked status
+    // locked pages are placed at the beginning of the list
+    const lockedPages = panelPageList.filter(pageID => pageDataReference[pageID].locked);
+    const unlockedPages = panelPageList.filter(pageID => !pageDataReference[pageID].locked);
+    return lockedPages.concat(unlockedPages);
+}
+
+export function isPageListOrderValid(panelPageList: PageID[], pageDataReference: PageDataReference): boolean {
+    // check if the page ordering rule is violated
+    const orderedPanelPageList = getOrderedPanelPageList(panelPageList, pageDataReference);
+    return JSON.stringify(panelPageList) == JSON.stringify(orderedPanelPageList);
+}
+
+export function getPanelPageListAfterMove(orgPanelPageList: PageID[], pageID: PageID, targetPositionPageID?: PageID): PageID[] {
+    const updatedPanelPageList = [...orgPanelPageList];
+    // first we remove the page from list
+    const movedPageIndex = updatedPanelPageList.indexOf(pageID);
+    const targetPageIndex = targetPositionPageID ? updatedPanelPageList.indexOf(targetPositionPageID) : updatedPanelPageList.length - 1;
+    // remove the moved page from page list only if it in the list
+    if (movedPageIndex != -1) updatedPanelPageList.splice(movedPageIndex, 1);
+    // then we insert the page to the target position
+    updatedPanelPageList.splice(targetPageIndex, 0, pageID);
+    return updatedPanelPageList;
+}
+
+export function canDropTargetAllowDrop(workspaceProps: WorkspaceProps, draggedData: DraggedData, pageID: PageID) {
+    const pageData = workspaceProps.pageDataReference[pageID];
+    const panelID = pageData.parentPanelID;
+
+    // if dragged page is the same as the current target, drop does nothing
+    if (draggedData.pageID == pageID) {
+        return false
+    }
+    // for dragging a locked page
+    if (workspaceProps!.pageDataReference[draggedData.pageID].locked) {
+        // if the dragged page is locked and from a different panel, drop should not be allowed
+        if (draggedData.panelID != panelID) {
+            return false
+        }
+        // if the dragged page is locked and from the same panel, check if page ordering rule is violated, if violated, drop is not allowed
+        else {
+            const pageListAfterMove = getPanelPageListAfterMove(workspaceProps!.panelPageListReference[panelID], draggedData.pageID, pageID);
+            const isValidOrder = isPageListOrderValid(pageListAfterMove, workspaceProps!.pageDataReference);
+            if (!isValidOrder) {
+                return false
+            }
+        }
+    }
+
+    // when dragged page is an unlocked page and this page is locked, show cursor as not allowed
+    if (!workspaceProps!.pageDataReference[draggedData.pageID].locked && pageData.locked) {
+        return false
+    }
+    return true;
+}
+
+export function getMostRecentFocusedPageInPanel(panelPageList: PageID[], pageDataReference: PageDataReference) {
+    // get the most recent focused page in the panel
+    let mostRecentTimestamp = 0;
+    let mostRecentPageID = "";
+    for (const pageID of panelPageList) {
+        if (pageDataReference[pageID].lastFocusedTimestamp > mostRecentTimestamp) {
+            mostRecentPageID = pageID;
+            mostRecentTimestamp = pageDataReference[pageID].lastFocusedTimestamp;
+        }
+    }
+    return mostRecentPageID;
+}
+
+export function getElementCenterPosition(element: HTMLElement) {
+    const rect = element.getBoundingClientRect();
+    return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+}
+
+export function getNewDefaultPageData(newPageID: PageID, panelID: PanelID,) {
+    const newPageData = {
+        pageID: newPageID,
+        name: `New Page (${newPageID})`,
+        parentPanelID: panelID,
+        persist: false,
+        creationTimestamp: Date.now(),
+        lastFocusedTimestamp: Date.now(),
+        renderData: {
+            type: "selfManaged",
+            componentInstance: <DefaultPage/>
+        } as PageRenderData
+    };
+    return newPageData
 }

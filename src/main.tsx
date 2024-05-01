@@ -6,7 +6,7 @@ import { getDefaultConfig, getEmptyWorkspaceProps } from './functions/workspaceI
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <WorkspaceContainer initialWorkspaceProps={getEmptyWorkspaceProps()} config={getDefaultConfig()}/>
+    <WorkspaceContainer initialWorkspaceProps={getEmptyWorkspaceProps()} initialWorksapceConfig={getDefaultConfig()}/>
   </React.StrictMode>,
 )
 

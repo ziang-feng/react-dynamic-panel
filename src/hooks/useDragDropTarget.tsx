@@ -1,13 +1,13 @@
 import { DraggedData } from "../types/workspaceTypes";
 import { RefObject, useEffect, useRef } from "react";
-import { isMouseInElement, triggerMouseMoveOnWindow } from "../functions/utility";
+import { isPositionInElement, triggerMouseMoveOnWindow } from "../functions/utility";
 
 export function useDragDropTarget(draggedData:DraggedData|null , elementRef: RefObject<HTMLElement>, dragEnterCallback: (e: MouseEvent) => void, dragOverCallback: (e: MouseEvent) => void, dragLeaveCallback: (e: MouseEvent) => void, dropCallback: (e: MouseEvent) => void, dropTargetMousePositionCheckOverride?: (e: MouseEvent, elementRef: RefObject<HTMLElement>) => boolean){
     const isPrevPositionInElementRef = useRef(false);
 
     const mouseMoveHandler = (e: MouseEvent) => {
         const isPrevPositionInElement = isPrevPositionInElementRef.current;
-        const isCurrentPositionInElement = dropTargetMousePositionCheckOverride ?dropTargetMousePositionCheckOverride(e, elementRef) : isMouseInElement(e, elementRef.current!.getBoundingClientRect());
+        const isCurrentPositionInElement = dropTargetMousePositionCheckOverride ?dropTargetMousePositionCheckOverride(e, elementRef) : isPositionInElement(e, elementRef.current!.getBoundingClientRect());
         if (!isPrevPositionInElement && isCurrentPositionInElement) {
             // if mouse enters element
             dragEnterCallback(e);
@@ -23,7 +23,7 @@ export function useDragDropTarget(draggedData:DraggedData|null , elementRef: Ref
     }
 
     const mouseUpCallback = (e: MouseEvent) => {
-        const isDropValid = dropTargetMousePositionCheckOverride ? dropTargetMousePositionCheckOverride(e, elementRef) : isMouseInElement(e, elementRef.current!.getBoundingClientRect());
+        const isDropValid = dropTargetMousePositionCheckOverride ? dropTargetMousePositionCheckOverride(e, elementRef) : isPositionInElement(e, elementRef.current!.getBoundingClientRect());
         if (isDropValid) {
             dropCallback(e);
         }
